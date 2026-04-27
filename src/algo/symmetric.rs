@@ -254,6 +254,13 @@ impl SymmetricToolState {
     pub fn select_algo(&mut self, algo: SymmetricAlgo) {
         self.selected_algo = algo; self.key_hex.clear(); self.iv_hex.clear(); self.input_hex.clear(); self.output_hex.clear(); self.error = None;
     }
+    pub fn reset(&mut self) {
+        self.input_hex.clear();
+        self.key_hex.clear();
+        self.iv_hex.clear();
+        self.output_hex.clear();
+        self.error = None;
+    }
 }
 
 #[cfg(test)]

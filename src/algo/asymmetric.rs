@@ -268,6 +268,18 @@ impl AsymmetricToolState {
         self.output_text.clear();
         self.error = None;
     }
+
+    pub fn reset(&mut self) {
+        self.input_text.clear();
+        self.output_text.clear();
+        self.error = None;
+        self.rsa_pub_key_pem.clear();
+        self.rsa_priv_key_pem.clear();
+        self.signature_hex.clear();
+        self.verify_result = None;
+        self.ecc_pub_key_hex.clear();
+        self.ecc_priv_key_hex.clear();
+    }
 }
 
 #[cfg(test)]

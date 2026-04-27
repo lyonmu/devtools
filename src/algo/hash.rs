@@ -150,6 +150,12 @@ impl HashToolState {
         self.output_hex.clear();
         self.error = None;
     }
+
+    pub fn reset(&mut self) {
+        self.input_text.clear();
+        self.output_hex.clear();
+        self.error = None;
+    }
 }
 
 #[cfg(test)]
