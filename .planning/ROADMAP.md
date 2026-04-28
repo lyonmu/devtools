@@ -109,7 +109,7 @@ Plans:
 - [x] 04-01-PLAN.md — GPUI-native IME-aware input foundation and algorithm input wiring
 
 **Wave 2** *(blocked on Wave 1 completion)*
-- [ ] 04-02-PLAN.md — Workbench layout, typography, status banners, compact action/reset controls
+- [x] 04-02-PLAN.md — Workbench layout, typography, status banners, compact action/reset controls
 
 **Wave 3** *(blocked on Wave 2 completion)*
 - [ ] 04-03-PLAN.md — Right-content scrolling, monospaced output blocks, certificate and algorithm copy support
