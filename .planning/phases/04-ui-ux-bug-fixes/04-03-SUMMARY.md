@@ -52,10 +52,11 @@ completed: 2026-04-28
 ## Task Commits
 
 1. **Task 1 + Task 2: Scroll/copy output affordances** - `3e2bc89` (feat)
+2. **Task 1 follow-up: Certificate detail scroll wrapper** - `35947ae` (fix)
 
 ## Files Created/Modified
 
-- `src/app.rs` - Adds app clipboard helper, monospaced output blocks, copy feedback, and copy buttons for algorithm result values.
+- `src/app.rs` - Adds app clipboard helper, monospaced output blocks, certificate detail scroll wrappers, copy feedback, and copy buttons for algorithm result values.
 - `src/tabs/mod.rs` - Adds certificate copy rows, certificate copy status, and monospaced extension value blocks.
 
 ## Decisions Made
@@ -105,7 +106,7 @@ Phase 4 implementation is ready for automated verification and manual UAT of nat
 ## Self-Check: PASSED
 
 - Verified key files exist: `src/app.rs`, `src/tabs/mod.rs`.
-- Verified commit exists: `3e2bc89`.
+- Verified commits exist: `3e2bc89`, `35947ae`.
 - Verification passed: `cargo build -p devtools && cargo test -p devtools`.
 
 ---
