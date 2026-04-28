@@ -151,7 +151,7 @@ impl DevToolsApp {
                     let cert_status = if let Some(status) = &t.copy_status {
                         render_status_banner(UiStatusKind::Success, status.clone())
                     } else if t.is_importing {
-                        render_status_banner(UiStatusKind::Info, "正在解析证书...")
+                        Self::render_loading_spinner("解析证书中...")
                     } else if let Some(err) = &t.import_error {
                         Self::render_expandable_error(
                             &format!("导入失败: {err}"),
@@ -170,18 +170,23 @@ impl DevToolsApp {
                         .child(cert_status)
                         .child(
                             div().flex().flex_row().justify_end().py_2()
-                                .child(
+                                .child(if t.is_importing {
+                                    Self::render_loading_spinner("解析证书中...")
+                                } else {
                                     div()
-                                        .id(ElementId::Name(SharedString::from("open-file-btn")))
-                                        .px_4().py_2().bg(COLOR_INFO)
-                                        .text_color(COLOR_TEXT_PRIMARY).text_size(FONT_BODY).rounded_md().cursor_pointer()
-                                        .on_mouse_down(MouseButton::Left, cx.listener(|this, _, _window, cx| {
-                                            if let DevToolsApp::Cert(_) = this {
-                                                this.open_file_dialog(cx);
-                                            }
-                                        }))
-                                        .child("选择证书文件"),
-                                ),
+                                        .child(
+                                            div()
+                                                .id(ElementId::Name(SharedString::from("open-file-btn")))
+                                                .px_4().py_2().bg(COLOR_INFO)
+                                                .text_color(COLOR_TEXT_PRIMARY).text_size(FONT_BODY).rounded_md().cursor_pointer()
+                                                .on_mouse_down(MouseButton::Left, cx.listener(|this, _, _window, cx| {
+                                                    if let DevToolsApp::Cert(_) = this {
+                                                        this.open_file_dialog(cx);
+                                                    }
+                                                }))
+                                                .child("选择证书文件"),
+                                        )
+                                }),
                         )
                         .child(content)
                         .into_any_element();
@@ -220,8 +225,8 @@ impl DevToolsApp {
         }
     }
     fn render_symmetric_tool(&mut self, window: &mut Window, cx: &mut Context<Self>) -> gpui::Div {
-        let (sym_input, sym_key, sym_iv, copy_status, err_expanded) = match self {
-            Self::Algo(t) => (t.sym_input.clone(), t.sym_key.clone(), t.sym_iv.clone(), t.copy_status.clone(), t.error_detail_expanded),
+        let (sym_input, sym_key, sym_iv, copy_status, err_expanded, is_executing) = match self {
+            Self::Algo(t) => (t.sym_input.clone(), t.sym_key.clone(), t.sym_iv.clone(), t.copy_status.clone(), t.error_detail_expanded, t.is_executing),
             _ => unreachable!(),
         };
         let s = &self.algo_mut().symmetric;
@@ -277,28 +282,32 @@ impl DevToolsApp {
         container = container.child(status);
         let need_exec = true;
         if need_exec {
-            container = container.child(
-                div().mt_2().flex().flex_row().gap_2()
-                    .child(
-                        render_action_button("sym-execute-btn", "执行", COLOR_SUCCESS)
-                            .on_mouse_down(MouseButton::Left, cx.listener(|this, _, _, cx| {
-                                this.sync_algo_inputs_to_tool_state(cx);
-                                this.algo_mut().symmetric.execute();
-                                this.sync_algo_tool_state_to_inputs(cx);
-                                this.algo_mut().error_detail_expanded = false;
-                                cx.notify();
-                            })),
-                    )
-                    .child(
-                        render_action_button("sym-reset-btn", "重置", rgb(0x6b7280))
-                            .on_mouse_down(MouseButton::Left, cx.listener(|this, _, _, cx| {
-                                this.algo_mut().symmetric.reset();
-                                this.algo_mut().error_detail_expanded = false;
-                                this.sync_algo_tool_state_to_inputs(cx);
-                                cx.notify();
-                            })),
-                    ),
-            );
+            if is_executing {
+                container = container.child(Self::render_loading_spinner("处理中..."));
+            } else {
+                container = container.child(
+                    div().mt_2().flex().flex_row().gap_2()
+                        .child(
+                            render_action_button("sym-execute-btn", "执行", COLOR_SUCCESS)
+                                .on_mouse_down(MouseButton::Left, cx.listener(|this, _, _, cx| {
+                                    this.sync_algo_inputs_to_tool_state(cx);
+                                    this.algo_mut().symmetric.execute();
+                                    this.sync_algo_tool_state_to_inputs(cx);
+                                    this.algo_mut().error_detail_expanded = false;
+                                    cx.notify();
+                                })),
+                        )
+                        .child(
+                            render_action_button("sym-reset-btn", "重置", rgb(0x6b7280))
+                                .on_mouse_down(MouseButton::Left, cx.listener(|this, _, _, cx| {
+                                    this.algo_mut().symmetric.reset();
+                                    this.algo_mut().error_detail_expanded = false;
+                                    this.sync_algo_tool_state_to_inputs(cx);
+                                    cx.notify();
+                                })),
+                        ),
+                );
+            }
         }
         if !s.output_hex.is_empty() {
             container = container.child(div().text_size(FONT_BODY).text_color(COLOR_TEXT_SECONDARY).child("输出结果:").mt_2());
@@ -808,6 +817,13 @@ impl DevToolsApp {
             );
         }
         banner
+    }
+    /// Helper: render a loading spinner with text
+    fn render_loading_spinner(text: &str) -> gpui::Div {
+        div()
+            .flex().flex_row().gap_2().items_center()
+            .child(div().text_size(FONT_BODY).text_color(COLOR_INFO).child("⏳"))
+            .child(div().text_size(FONT_BODY).text_color(COLOR_TEXT_SECONDARY).child(text.to_string()))
     }
     fn algo_mut(&mut self) -> &mut AlgoTab {
         match self {
