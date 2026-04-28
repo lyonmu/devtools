@@ -106,7 +106,7 @@ Plans:
 
 Plans:
 **Wave 1**
-- [ ] 04-01-PLAN.md — GPUI-native IME-aware input foundation and algorithm input wiring
+- [x] 04-01-PLAN.md — GPUI-native IME-aware input foundation and algorithm input wiring
 
 **Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 04-02-PLAN.md — Workbench layout, typography, status banners, compact action/reset controls
