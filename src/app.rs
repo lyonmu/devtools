@@ -248,15 +248,15 @@ impl DevToolsApp {
                         .child(content)
                         .into_any_element();
                 }
-                if let Some(status) = &t.copy_status {
-                    return div()
-                        .id(ElementId::Name(SharedString::from("cert-tab-content")))
-                        .flex_1().flex().flex_col().gap_2().p_4().overflow_y_scroll()
-                        .child(Self::render_status_banner(UiStatusKind::Success, status.clone()))
-                        .child(content)
-                        .into_any_element();
-                }
-                content.into_any_element()
+                let wrapper = div()
+                    .id(ElementId::Name(SharedString::from("cert-tab-content")))
+                    .flex_1().flex().flex_col().gap_2().p_4().overflow_y_scroll();
+                let wrapper = if let Some(status) = &t.copy_status {
+                    wrapper.child(Self::render_status_banner(UiStatusKind::Success, status.clone()))
+                } else {
+                    wrapper
+                };
+                wrapper.child(content).into_any_element()
             }
             Self::Algo(t) => {
                 let content = match t.active_menu {
