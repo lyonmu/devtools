@@ -208,4 +208,23 @@ mod tests {
         state.compute();
         assert_eq!(state.output_hex.len(), 128); // 64 bytes = 128 hex chars
     }
+
+    #[test]
+    fn reset_clears_input_output_and_preserves_algorithm_and_format() {
+        let mut state = HashToolState {
+            selected_algo: HashAlgo::Sm3,
+            input_text: "48656c6c6f".to_string(),
+            input_format: InputFormat::Hex,
+            output_hex: "abcd".to_string(),
+            error: Some("错误".to_string()),
+        };
+
+        state.reset();
+
+        assert_eq!(state.selected_algo, HashAlgo::Sm3);
+        assert_eq!(state.input_format, InputFormat::Hex);
+        assert!(state.input_text.is_empty());
+        assert!(state.output_hex.is_empty());
+        assert!(state.error.is_none());
+    }
 }

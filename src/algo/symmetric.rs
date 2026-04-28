@@ -282,4 +282,27 @@ mod tests {
         let dec = sm4_ecb_decrypt(&ct, &key).unwrap();
         assert_eq!(dec, pt);
     }
+
+    #[test]
+    fn reset_clears_data_and_preserves_selected_algorithm_and_mode() {
+        let mut state = SymmetricToolState {
+            selected_algo: SymmetricAlgo::Sm4Cbc,
+            input_hex: "001122".to_string(),
+            key_hex: "00".repeat(16),
+            iv_hex: "11".repeat(16),
+            output_hex: "deadbeef".to_string(),
+            mode: CryptoMode::Decrypt,
+            error: Some("错误".to_string()),
+        };
+
+        state.reset();
+
+        assert_eq!(state.selected_algo, SymmetricAlgo::Sm4Cbc);
+        assert_eq!(state.mode, CryptoMode::Decrypt);
+        assert!(state.input_hex.is_empty());
+        assert!(state.key_hex.is_empty());
+        assert!(state.iv_hex.is_empty());
+        assert!(state.output_hex.is_empty());
+        assert!(state.error.is_none());
+    }
 }

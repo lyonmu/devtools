@@ -320,4 +320,35 @@ mod tests {
         assert!(state.error.is_none(), "verify error: {:?}", state.error);
         assert_eq!(state.verify_result, Some(true));
     }
+
+    #[test]
+    fn reset_clears_outputs_and_preserves_operation_and_key_size() {
+        let mut state = AsymmetricToolState {
+            selected_op: AsymmetricOp::EcdsaVerify,
+            input_text: "消息".to_string(),
+            output_text: "结果".to_string(),
+            error: Some("错误".to_string()),
+            rsa_key_size: RsaKeySize::B3072,
+            rsa_pub_key_pem: "public".to_string(),
+            rsa_priv_key_pem: "private".to_string(),
+            signature_hex: "abcd".to_string(),
+            verify_result: Some(true),
+            ecc_pub_key_hex: "01".to_string(),
+            ecc_priv_key_hex: "02".to_string(),
+        };
+
+        state.reset();
+
+        assert_eq!(state.selected_op, AsymmetricOp::EcdsaVerify);
+        assert_eq!(state.rsa_key_size, RsaKeySize::B3072);
+        assert!(state.input_text.is_empty());
+        assert!(state.output_text.is_empty());
+        assert!(state.error.is_none());
+        assert!(state.rsa_pub_key_pem.is_empty());
+        assert!(state.rsa_priv_key_pem.is_empty());
+        assert!(state.signature_hex.is_empty());
+        assert_eq!(state.verify_result, None);
+        assert!(state.ecc_pub_key_hex.is_empty());
+        assert!(state.ecc_priv_key_hex.is_empty());
+    }
 }
