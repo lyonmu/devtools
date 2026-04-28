@@ -286,6 +286,30 @@ impl AsymmetricToolState {
 mod tests {
     use super::*;
 
+    fn generated_rsa_state() -> AsymmetricToolState {
+        let mut state = AsymmetricToolState::default();
+        state.selected_op = AsymmetricOp::RsaKeyGen;
+        state.execute();
+        assert!(state.error.is_none(), "keygen error: {:?}", state.error);
+        state
+    }
+
+    fn clone_state_for_test(state: &AsymmetricToolState) -> AsymmetricToolState {
+        AsymmetricToolState {
+            selected_op: state.selected_op,
+            input_text: state.input_text.clone(),
+            output_text: state.output_text.clone(),
+            error: state.error.clone(),
+            rsa_key_size: state.rsa_key_size,
+            rsa_pub_key_pem: state.rsa_pub_key_pem.clone(),
+            rsa_priv_key_pem: state.rsa_priv_key_pem.clone(),
+            signature_hex: state.signature_hex.clone(),
+            verify_result: state.verify_result,
+            ecc_pub_key_hex: state.ecc_pub_key_hex.clone(),
+            ecc_priv_key_hex: state.ecc_priv_key_hex.clone(),
+        }
+    }
+
     #[test]
     fn test_rsa_encrypt_decrypt_roundtrip() {
         let mut state = AsymmetricToolState::default();
@@ -307,6 +331,68 @@ mod tests {
     }
 
     #[test]
+    fn rsa_keygen_and_key_size_selection_update_state() {
+        let mut state = generated_rsa_state();
+
+        assert!(state.rsa_pub_key_pem.contains("PUBLIC KEY"));
+        assert!(state.rsa_priv_key_pem.contains("PRIVATE KEY"));
+        assert!(state.output_text.contains("RSA-2048 密钥对生成成功"));
+
+        state.select_rsa_key_size(RsaKeySize::B3072);
+        assert_eq!(state.rsa_key_size, RsaKeySize::B3072);
+        assert!(state.rsa_pub_key_pem.is_empty());
+        assert!(state.rsa_priv_key_pem.is_empty());
+        assert!(state.output_text.is_empty());
+        assert!(state.error.is_none());
+    }
+
+    #[test]
+    fn rsa_encrypt_reports_missing_invalid_and_oversized_input_errors() {
+        let mut missing = AsymmetricToolState::default();
+        missing.selected_op = AsymmetricOp::RsaEncrypt;
+        missing.input_text = "hello".to_string();
+        missing.execute();
+        assert_eq!(missing.error.as_deref(), Some("请先生成 RSA 密钥对或导入公钥"));
+        assert!(missing.output_text.is_empty());
+
+        let mut invalid_pem = AsymmetricToolState::default();
+        invalid_pem.selected_op = AsymmetricOp::RsaEncrypt;
+        invalid_pem.rsa_pub_key_pem = "not a public key".to_string();
+        invalid_pem.input_text = "hello".to_string();
+        invalid_pem.execute();
+        assert!(invalid_pem.error.as_deref().unwrap_or_default().contains("解析公钥失败"));
+
+        let mut oversized = generated_rsa_state();
+        oversized.selected_op = AsymmetricOp::RsaEncrypt;
+        oversized.input_text = "x".repeat(300);
+        oversized.execute();
+        assert!(oversized.error.as_deref().unwrap_or_default().contains("明文过长"));
+        assert!(oversized.output_text.is_empty());
+    }
+
+    #[test]
+    fn rsa_decrypt_reports_missing_invalid_hex_and_invalid_private_key_errors() {
+        let mut missing = AsymmetricToolState::default();
+        missing.selected_op = AsymmetricOp::RsaDecrypt;
+        missing.input_text = "00".to_string();
+        missing.execute();
+        assert_eq!(missing.error.as_deref(), Some("请先生成 RSA 密钥对或导入私钥"));
+
+        let mut invalid_hex = generated_rsa_state();
+        invalid_hex.selected_op = AsymmetricOp::RsaDecrypt;
+        invalid_hex.input_text = "abc".to_string();
+        invalid_hex.execute();
+        assert!(invalid_hex.error.as_deref().unwrap_or_default().contains("密文格式错误"));
+
+        let mut invalid_pem = AsymmetricToolState::default();
+        invalid_pem.selected_op = AsymmetricOp::RsaDecrypt;
+        invalid_pem.rsa_priv_key_pem = "not a private key".to_string();
+        invalid_pem.input_text = "00".to_string();
+        invalid_pem.execute();
+        assert!(invalid_pem.error.as_deref().unwrap_or_default().contains("解析私钥失败"));
+    }
+
+    #[test]
     fn test_ecdsa_sign_verify_roundtrip() {
         let mut state = AsymmetricToolState::default();
         state.selected_op = AsymmetricOp::EcdsaSign;
@@ -319,6 +405,96 @@ mod tests {
         state.execute();
         assert!(state.error.is_none(), "verify error: {:?}", state.error);
         assert_eq!(state.verify_result, Some(true));
+    }
+
+    #[test]
+    fn ecdsa_sign_generates_keys_and_verify_detects_tampering() {
+        let mut state = AsymmetricToolState::default();
+        state.selected_op = AsymmetricOp::EcdsaSign;
+        state.input_text = "signed message".to_string();
+        state.execute();
+
+        assert!(state.error.is_none(), "sign error: {:?}", state.error);
+        assert!(!state.ecc_pub_key_hex.is_empty());
+        assert!(!state.ecc_priv_key_hex.is_empty());
+        assert!(!state.signature_hex.is_empty());
+
+        state.selected_op = AsymmetricOp::EcdsaVerify;
+        state.execute();
+        assert_eq!(state.verify_result, Some(true));
+
+        state.input_text = "tampered message".to_string();
+        state.execute();
+        assert!(state.error.is_none(), "verify error: {:?}", state.error);
+        assert_eq!(state.verify_result, Some(false));
+        assert_eq!(state.output_text, "签名验证失败");
+    }
+
+    #[test]
+    fn ecdsa_verify_reports_missing_and_malformed_inputs() {
+        let mut signed = AsymmetricToolState::default();
+        signed.selected_op = AsymmetricOp::EcdsaSign;
+        signed.input_text = "message".to_string();
+        signed.execute();
+        assert!(signed.error.is_none());
+
+        let mut missing_pub = clone_state_for_test(&signed);
+        missing_pub.selected_op = AsymmetricOp::EcdsaVerify;
+        missing_pub.ecc_pub_key_hex.clear();
+        missing_pub.execute();
+        assert_eq!(missing_pub.error.as_deref(), Some("请先生成密钥对"));
+
+        let mut missing_sig = clone_state_for_test(&signed);
+        missing_sig.selected_op = AsymmetricOp::EcdsaVerify;
+        missing_sig.signature_hex.clear();
+        missing_sig.execute();
+        assert_eq!(missing_sig.error.as_deref(), Some("请先进行签名"));
+
+        let mut invalid_pub_hex = clone_state_for_test(&signed);
+        invalid_pub_hex.selected_op = AsymmetricOp::EcdsaVerify;
+        invalid_pub_hex.ecc_pub_key_hex = "zz".to_string();
+        invalid_pub_hex.execute();
+        assert!(invalid_pub_hex.error.as_deref().unwrap_or_default().contains("公钥格式错误"));
+
+        let mut invalid_pub_bytes = clone_state_for_test(&signed);
+        invalid_pub_bytes.selected_op = AsymmetricOp::EcdsaVerify;
+        invalid_pub_bytes.ecc_pub_key_hex = "00".to_string();
+        invalid_pub_bytes.execute();
+        assert!(invalid_pub_bytes.error.as_deref().unwrap_or_default().contains("公钥解析失败"));
+
+        let mut invalid_sig_hex = clone_state_for_test(&signed);
+        invalid_sig_hex.selected_op = AsymmetricOp::EcdsaVerify;
+        invalid_sig_hex.signature_hex = "zz".to_string();
+        invalid_sig_hex.execute();
+        assert!(invalid_sig_hex.error.as_deref().unwrap_or_default().contains("签名格式错误"));
+
+        let mut invalid_sig_bytes = clone_state_for_test(&signed);
+        invalid_sig_bytes.selected_op = AsymmetricOp::EcdsaVerify;
+        invalid_sig_bytes.signature_hex = "00".to_string();
+        invalid_sig_bytes.execute();
+        assert_eq!(invalid_sig_bytes.error.as_deref(), Some("签名数据无效"));
+    }
+
+    #[test]
+    fn select_op_clears_transient_output_without_clearing_keys() {
+        let mut state = AsymmetricToolState::default();
+        state.selected_op = AsymmetricOp::EcdsaSign;
+        state.input_text = "message".to_string();
+        state.execute();
+        let pub_key = state.ecc_pub_key_hex.clone();
+        let priv_key = state.ecc_priv_key_hex.clone();
+        state.output_text = "old".to_string();
+        state.error = Some("错误".to_string());
+        state.verify_result = Some(false);
+
+        state.select_op(AsymmetricOp::EcdsaVerify);
+
+        assert_eq!(state.selected_op, AsymmetricOp::EcdsaVerify);
+        assert!(state.output_text.is_empty());
+        assert!(state.error.is_none());
+        assert_eq!(state.verify_result, None);
+        assert_eq!(state.ecc_pub_key_hex, pub_key);
+        assert_eq!(state.ecc_priv_key_hex, priv_key);
     }
 
     #[test]
@@ -372,4 +548,3 @@ impl CryptoTool for AsymmetricToolState {
     }
     fn error_display(&self) -> Option<&str> { self.error.as_deref() }
 }
-
