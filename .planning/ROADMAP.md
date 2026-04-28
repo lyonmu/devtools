@@ -109,7 +109,7 @@ Plans:
 - [x] 02-02-PLAN.md — Add deterministic hash and symmetric algorithm tests
 
 **Wave 3** *(blocked on Wave 2 completion)*
-- [ ] 02-03-PLAN.md — Expand RSA and ECDSA flow/error-path tests
+- [x] 02-03-PLAN.md — Expand RSA and ECDSA flow/error-path tests
 
 **Wave 4** *(blocked on Wave 3 completion)*
 - [ ] 02-04-PLAN.md — Add certificate fixtures and parser format tests
