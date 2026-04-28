@@ -12,4 +12,5 @@ pub use asymmetric::{AsymmetricOp, AsymmetricToolState, RsaKeySize};
 pub use hash::{HashAlgo, HashToolState};
 pub use pq_kem::{PqKemAlgo, PqKemToolState};
 pub use pq_signature::{PqSignatureAlgo, PqSignatureToolState};
+#[allow(unused_imports)]
 pub use tool_trait::CryptoTool;

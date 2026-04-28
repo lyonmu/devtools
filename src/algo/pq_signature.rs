@@ -238,3 +238,24 @@ mod tests {
         assert_eq!(state.verify_result, Some(true));
     }
 }
+
+use super::registry::AlgorithmCategory;
+use super::tool_trait::CryptoTool;
+
+impl CryptoTool for PqSignatureToolState {
+    fn name(&self) -> &str { "数字签名算法" }
+    fn category(&self) -> AlgorithmCategory { AlgorithmCategory::Signature }
+    fn execute(&mut self) { self.keygen(); }
+    fn reset(&mut self) { self.clear(); }
+    fn has_output(&self) -> bool {
+        !self.output_text.is_empty() || !self.public_key_hex.is_empty() || !self.signature_hex.is_empty()
+    }
+    fn output_display(&self) -> String {
+        if !self.output_text.is_empty() { self.output_text.clone() }
+        else if !self.public_key_hex.is_empty() { self.public_key_hex.clone() }
+        else if !self.signature_hex.is_empty() { self.signature_hex.clone() }
+        else { String::new() }
+    }
+    fn error_display(&self) -> Option<&str> { self.error.as_deref() }
+}
+

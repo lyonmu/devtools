@@ -228,3 +228,17 @@ mod tests {
         assert!(state.error.is_none());
     }
 }
+
+use super::registry::AlgorithmCategory;
+use super::tool_trait::CryptoTool;
+
+impl CryptoTool for HashToolState {
+    fn name(&self) -> &str { "哈希算法" }
+    fn category(&self) -> AlgorithmCategory { AlgorithmCategory::Hash }
+    fn execute(&mut self) { self.compute(); }
+    fn reset(&mut self) { HashToolState::reset(self); }
+    fn has_output(&self) -> bool { !self.output_hex.is_empty() }
+    fn output_display(&self) -> String { self.output_hex.clone() }
+    fn error_display(&self) -> Option<&str> { self.error.as_deref() }
+}
+

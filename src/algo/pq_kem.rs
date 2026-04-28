@@ -286,3 +286,24 @@ mod tests {
         assert!(state.output_text.contains("共享密钥匹配"));
     }
 }
+
+use super::registry::AlgorithmCategory;
+use super::tool_trait::CryptoTool;
+
+impl CryptoTool for PqKemToolState {
+    fn name(&self) -> &str { "密码封装算法 (KEM)" }
+    fn category(&self) -> AlgorithmCategory { AlgorithmCategory::KEM }
+    fn execute(&mut self) { self.keygen(); }
+    fn reset(&mut self) { self.clear(); }
+    fn has_output(&self) -> bool {
+        !self.output_text.is_empty() || !self.public_key_hex.is_empty() || !self.ciphertext_hex.is_empty()
+    }
+    fn output_display(&self) -> String {
+        if !self.output_text.is_empty() { self.output_text.clone() }
+        else if !self.public_key_hex.is_empty() { self.public_key_hex.clone() }
+        else if !self.ciphertext_hex.is_empty() { self.ciphertext_hex.clone() }
+        else { String::new() }
+    }
+    fn error_display(&self) -> Option<&str> { self.error.as_deref() }
+}
+

@@ -352,3 +352,24 @@ mod tests {
         assert!(state.ecc_priv_key_hex.is_empty());
     }
 }
+
+use super::registry::AlgorithmCategory;
+use super::tool_trait::CryptoTool;
+
+impl CryptoTool for AsymmetricToolState {
+    fn name(&self) -> &str { "非对称算法" }
+    fn category(&self) -> AlgorithmCategory { AlgorithmCategory::Asymmetric }
+    fn execute(&mut self) { AsymmetricToolState::execute(self); }
+    fn reset(&mut self) { AsymmetricToolState::reset(self); }
+    fn has_output(&self) -> bool {
+        !self.output_text.is_empty() || !self.rsa_pub_key_pem.is_empty() || !self.signature_hex.is_empty()
+    }
+    fn output_display(&self) -> String {
+        if !self.output_text.is_empty() { self.output_text.clone() }
+        else if !self.rsa_pub_key_pem.is_empty() { self.rsa_pub_key_pem.clone() }
+        else if !self.signature_hex.is_empty() { self.signature_hex.clone() }
+        else { String::new() }
+    }
+    fn error_display(&self) -> Option<&str> { self.error.as_deref() }
+}
+

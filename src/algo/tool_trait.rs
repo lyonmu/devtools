@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use super::registry::AlgorithmCategory;
 
 /// Unified interface for all cryptographic tool states.
@@ -41,7 +43,7 @@ mod tests {
         error: Option<String>,
     }
 
-    impl CryptoTool for StubTool {
+    impl crate::algo::tool_trait::CryptoTool for StubTool {
         fn name(&self) -> &str { "测试工具" }
         fn category(&self) -> AlgorithmCategory { AlgorithmCategory::Hash }
         fn execute(&mut self) { self.output = "ok".to_string(); }

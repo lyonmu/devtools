@@ -306,3 +306,17 @@ mod tests {
         assert!(state.error.is_none());
     }
 }
+
+use super::registry::AlgorithmCategory;
+use super::tool_trait::CryptoTool;
+
+impl CryptoTool for SymmetricToolState {
+    fn name(&self) -> &str { "对称算法" }
+    fn category(&self) -> AlgorithmCategory { AlgorithmCategory::Symmetric }
+    fn execute(&mut self) { SymmetricToolState::execute(self); }
+    fn reset(&mut self) { SymmetricToolState::reset(self); }
+    fn has_output(&self) -> bool { !self.output_hex.is_empty() }
+    fn output_display(&self) -> String { self.output_hex.clone() }
+    fn error_display(&self) -> Option<&str> { self.error.as_deref() }
+}
+
