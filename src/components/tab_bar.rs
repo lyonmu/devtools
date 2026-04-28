@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use gpui::{div, px, rgb, ElementId, InteractiveElement, IntoElement, ParentElement, SharedString, Styled, Window};
+use gpui::{div, rgb, ElementId, InteractiveElement, IntoElement, ParentElement, SharedString, Styled, Window};
 
 /// Top tab bar component — horizontal row of clickable tab buttons.
 pub struct TabBar {
