@@ -1,12 +1,16 @@
-use gpui::{div, px, rgb, ParentElement, SharedString, Styled};
+use gpui::{div, px, rgb, AppContext, Entity, ParentElement, SharedString, Styled};
 
 use crate::cert::ParsedCert;
+
+const FONT_TITLE: gpui::Pixels = gpui::px(18.0);
+const FONT_BODY: gpui::Pixels = gpui::px(16.0);
+const FONT_SMALL: gpui::Pixels = gpui::px(14.0);
 
 /// Helper: render a label-value row
 fn info_row(label: &str, value: &str) -> gpui::Div {
     div().flex().flex_row().gap_4().py_1().border_b_1().border_color(rgb(0x3a3a4a))
-        .child(div().w(px(120.0)).text_sm().text_color(rgb(0x888899)).child(label.to_string()))
-        .child(div().flex_1().text_sm().text_color(rgb(0xddddcc)).child(value.to_string()))
+        .child(div().w(px(120.0)).text_size(FONT_BODY).text_color(rgb(0x888899)).child(label.to_string()))
+        .child(div().flex_1().text_size(FONT_BODY).text_color(rgb(0xddddcc)).child(value.to_string()))
 }
 
 // ============================================================
@@ -51,16 +55,16 @@ impl CertTab {
 
     fn render_import(&self) -> gpui::Div {
         let status = if self.is_importing {
-            div().text_sm().text_color(rgb(0x8888aa)).child("正在解析证书...")
+            div().text_size(FONT_BODY).text_color(rgb(0x8888aa)).child("正在解析证书...")
         } else if let Some(err) = &self.import_error {
-            div().text_sm().text_color(rgb(0xf87171)).child(format!("导入失败: {err}"))
+            div().text_size(FONT_BODY).text_color(rgb(0xf87171)).child(format!("导入失败: {err}"))
         } else if let Some(cert) = &self.loaded_cert {
             let chain_info = if !cert.chain.is_empty() {
                 format!(" (证书链: {} 个证书)", cert.chain.len() + 1)
             } else {
                 String::new()
             };
-            div().text_sm().text_color(rgb(0x4ade80))
+            div().text_size(FONT_BODY).text_color(rgb(0x4ade80))
                 .child(format!("导入成功: {}{}", cert.subject, chain_info))
         } else {
             div()
@@ -73,7 +77,7 @@ impl CertTab {
             };
             div()
                 .mt_4().p_4().bg(rgb(0x1e1e2e)).rounded_md()
-                .child(div().text_sm().text_color(rgb(0xffffff)).child("证书信息预览").mb_2())
+                .child(div().text_size(FONT_BODY).text_color(rgb(0xffffff)).child("证书信息预览").mb_2())
                 .child(div().flex().flex_col().gap_1()
                     .child(info_row("主题", &cert.subject))
                     .child(info_row("颁发者", &cert.issuer))
@@ -90,10 +94,10 @@ impl CertTab {
 
         div()
             .flex_1().p_4().gap_4().flex().flex_col()
-            .child(div().text_lg().text_color(rgb(0xffffff)).child("导入证书文件"))
+            .child(div().text_size(FONT_TITLE).text_color(rgb(0xffffff)).child("导入证书文件"))
             .child(div().flex().flex_col().gap_2().items_center().justify_center().flex_1()
-                .child(div().text_sm().text_color(rgb(0x888899)).child("点击「选择证书文件」按钮导入文件"))
-                .child(div().text_sm().text_color(rgb(0x666677)).child("支持格式: .pem, .der, .crt, .cer, .p12, .pfx"))
+                .child(div().text_size(FONT_BODY).text_color(rgb(0x888899)).child("点击「选择证书文件」按钮导入文件"))
+                .child(div().text_size(FONT_BODY).text_color(rgb(0x666677)).child("支持格式: .pem, .der, .crt, .cer, .p12, .pfx"))
             )
             .child(status)
             .child(cert_preview)
@@ -108,7 +112,7 @@ impl CertTab {
                 };
                 div()
                     .flex_1().p_4().gap_4().flex().flex_col()
-                    .child(div().text_lg().text_color(rgb(0xffffff)).child("基本信息"))
+                    .child(div().text_size(FONT_TITLE).text_color(rgb(0xffffff)).child("基本信息"))
                     .child(div().flex().flex_col().gap_1()
                         .child(info_row("文件路径", &cert.raw_path))
                         .child(info_row("版本", &cert.version))
@@ -126,8 +130,8 @@ impl CertTab {
             }
             None => div()
                 .flex_1().p_4().gap_4().flex().flex_col()
-                .child(div().text_lg().text_color(rgb(0xffffff)).child("基本信息"))
-                .child(div().text_sm().text_color(rgb(0x888899)).child("请先导入证书文件以查看详细信息。")),
+                .child(div().text_size(FONT_TITLE).text_color(rgb(0xffffff)).child("基本信息"))
+                .child(div().text_size(FONT_BODY).text_color(rgb(0x888899)).child("请先导入证书文件以查看详细信息。")),
         }
     }
 
@@ -136,7 +140,7 @@ impl CertTab {
             Some(cert) => {
                 let mut container = div()
                     .flex_1().p_4().gap_4().flex().flex_col()
-                    .child(div().text_lg().text_color(rgb(0xffffff)).child("证书链信息"));
+                    .child(div().text_size(FONT_TITLE).text_color(rgb(0xffffff)).child("证书链信息"));
 
                 let all_certs: Vec<&ParsedCert> = std::iter::once(cert)
                     .chain(cert.chain.iter())
@@ -144,7 +148,7 @@ impl CertTab {
 
                 if all_certs.len() == 1 {
                     container = container.child(div()
-                        .text_sm().text_color(rgb(0x888899))
+                        .text_size(FONT_BODY).text_color(rgb(0x888899))
                         .child("此证书为独立证书，无证书链"));
                 }
 
@@ -156,7 +160,7 @@ impl CertTab {
                     };
                     container = container.child(div()
                         .flex().flex_col().gap_1().mt_2()
-                        .child(div().text_sm().text_color(rgb(0x4ade80)).child(label))
+                        .child(div().text_size(FONT_BODY).text_color(rgb(0x4ade80)).child(label))
                         .child(info_row("主题", &c.subject))
                         .child(info_row("颁发者", &c.issuer))
                         .child(info_row("有效期起始", &c.not_before))
@@ -168,8 +172,8 @@ impl CertTab {
             }
             None => div()
                 .flex_1().p_4().gap_4().flex().flex_col()
-                .child(div().text_lg().text_color(rgb(0xffffff)).child("证书链信息"))
-                .child(div().text_sm().text_color(rgb(0x888899)).child("请先导入证书文件。")),
+                .child(div().text_size(FONT_TITLE).text_color(rgb(0xffffff)).child("证书链信息"))
+                .child(div().text_size(FONT_BODY).text_color(rgb(0x888899)).child("请先导入证书文件。")),
         }
     }
 
@@ -178,11 +182,11 @@ impl CertTab {
             Some(cert) => {
                 let mut container = div()
                     .flex_1().p_4().gap_4().flex().flex_col()
-                    .child(div().text_lg().text_color(rgb(0xffffff)).child("扩展项信息"));
+                    .child(div().text_size(FONT_TITLE).text_color(rgb(0xffffff)).child("扩展项信息"));
 
                 if cert.extensions.is_empty() {
                     container = container.child(div()
-                        .text_sm().text_color(rgb(0x888899))
+                        .text_size(FONT_BODY).text_color(rgb(0x888899))
                         .child("无扩展项信息"));
                 } else {
                     for ext in &cert.extensions {
@@ -190,13 +194,13 @@ impl CertTab {
                         container = container.child(div()
                             .flex().flex_col().gap_1().py_1()
                             .child(div().flex().flex_row().gap_2()
-                                .child(div().text_sm().text_color(rgb(0xffffff)).child(format!("{}: ", ext.name)))
-                                .child(div().text_xs().text_color(rgb(0x666677)).child(format!("OID: {}", ext.oid)))
-                                .child(div().text_xs().text_color(if ext.critical { rgb(0xf87171) } else { rgb(0x888899) }).child(format!("关键: {}", critical_label)))
+                                .child(div().text_size(FONT_BODY).text_color(rgb(0xffffff)).child(format!("{}: ", ext.name)))
+                                .child(div().text_size(FONT_SMALL).text_color(rgb(0x666677)).child(format!("OID: {}", ext.oid)))
+                                .child(div().text_size(FONT_SMALL).text_color(if ext.critical { rgb(0xf87171) } else { rgb(0x888899) }).child(format!("关键: {}", critical_label)))
                             )
-                            .child(div().text_sm().text_color(rgb(0xddddcc)).child(
+                            .child(div().text_size(FONT_BODY).text_color(rgb(0xddddcc)).child(
                                 div().flex().flex_col().gap_1().children(
-                                    ext.value_display.lines().map(|line| div().text_sm().text_color(rgb(0xaabb99)).child(line.to_string()))
+                                    ext.value_display.lines().map(|line| div().text_size(FONT_BODY).text_color(rgb(0xaabb99)).child(line.to_string()))
                                 )
                             ))
                             .child(div().h(px(1.0)).bg(rgb(0x3a3a4a)))
@@ -208,8 +212,8 @@ impl CertTab {
             }
             None => div()
                 .flex_1().p_4().gap_4().flex().flex_col()
-                .child(div().text_lg().text_color(rgb(0xffffff)).child("扩展项信息"))
-                .child(div().text_sm().text_color(rgb(0x888899)).child("请先导入证书文件。")),
+                .child(div().text_size(FONT_TITLE).text_color(rgb(0xffffff)).child("扩展项信息"))
+                .child(div().text_size(FONT_BODY).text_color(rgb(0x888899)).child("请先导入证书文件。")),
         }
     }
 }
@@ -220,66 +224,115 @@ impl CertTab {
 // ============================================================
 
 use crate::algo::{
-    SymmetricToolState,
     AsymmetricToolState,
     HashToolState,
     PqKemToolState,
     PqSignatureToolState,
+    SymmetricToolState,
 };
+use crate::components::input::{InputKind, TextInputState};
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum AlgoInputField {
+    SymInput,
+    SymKey,
+    SymIv,
+    AsymInput,
+    HashInput,
+    PqSignatureMessage,
+}
 
 pub struct AlgoTab {
     pub active_menu: usize,
-    pub focused_field: Option<usize>,
     pub symmetric: SymmetricToolState,
     pub asymmetric: AsymmetricToolState,
     pub hash: HashToolState,
     pub pq_kem: PqKemToolState,
     pub pq_signature: PqSignatureToolState,
+    pub sym_input: Entity<TextInputState>,
+    pub sym_key: Entity<TextInputState>,
+    pub sym_iv: Entity<TextInputState>,
+    pub asym_input: Entity<TextInputState>,
+    pub hash_input: Entity<TextInputState>,
+    pub pq_signature_message: Entity<TextInputState>,
 }
 
 impl AlgoTab {
-    pub fn new() -> Self {
+    pub fn new(cx: &mut gpui::Context<crate::app::DevToolsApp>) -> Self {
         Self {
             active_menu: 0,
-            focused_field: None,
             symmetric: SymmetricToolState::default(),
             asymmetric: AsymmetricToolState::default(),
             hash: HashToolState::default(),
             pq_kem: PqKemToolState::default(),
             pq_signature: PqSignatureToolState::default(),
+            sym_input: cx.new(|cx| TextInputState::new("输入十六进制数据", InputKind::SingleLine, cx)),
+            sym_key: cx.new(|cx| TextInputState::new("输入密钥", InputKind::SingleLine, cx)),
+            sym_iv: cx.new(|cx| TextInputState::new("输入 16 字节 IV", InputKind::SingleLine, cx)),
+            asym_input: cx.new(|cx| TextInputState::new("输入文本或密文", InputKind::MultiLine, cx)),
+            hash_input: cx.new(|cx| TextInputState::new("输入要计算哈希的数据", InputKind::MultiLine, cx)),
+            pq_signature_message: cx.new(|cx| TextInputState::new("输入要签名的消息", InputKind::MultiLine, cx)),
         }
     }
 
-    pub fn handle_key_input(&mut self, key: &str) {
-        let focused = match self.focused_field { Some(f) => f, None => return };
-        match focused {
-            0 => self.symmetric.input_hex.push_str(key),
-            1 => self.symmetric.key_hex.push_str(key),
-            2 => self.symmetric.iv_hex.push_str(key),
-            3 => self.asymmetric.input_text.push_str(key),
-            4 => self.asymmetric.input_text.push_str(key),
-            5 => self.hash.input_text.push_str(key),
-            6 => self.pq_signature.input_text.push_str(key),
-            _ => {}
+    pub fn input_for_field(&self, field: AlgoInputField) -> Entity<TextInputState> {
+        match field {
+            AlgoInputField::SymInput => self.sym_input.clone(),
+            AlgoInputField::SymKey => self.sym_key.clone(),
+            AlgoInputField::SymIv => self.sym_iv.clone(),
+            AlgoInputField::AsymInput => self.asym_input.clone(),
+            AlgoInputField::HashInput => self.hash_input.clone(),
+            AlgoInputField::PqSignatureMessage => self.pq_signature_message.clone(),
         }
     }
 
-    pub fn handle_backspace(&mut self) {
-        let focused = match self.focused_field { Some(f) => f, None => return };
-        match focused {
-            0 => { self.symmetric.input_hex.pop(); }
-            1 => { self.symmetric.key_hex.pop(); }
-            2 => { self.symmetric.iv_hex.pop(); }
-            3 => { self.asymmetric.input_text.pop(); }
-            4 => { self.asymmetric.input_text.pop(); }
-            5 => { self.hash.input_text.pop(); }
-            6 => { self.pq_signature.input_text.pop(); }
-            _ => {}
-        }
+    pub fn sync_inputs_to_tool_state(&mut self, cx: &mut gpui::App) {
+        self.symmetric.input_hex = self.sym_input.read(cx).take_value();
+        self.symmetric.key_hex = self.sym_key.read(cx).take_value();
+        self.symmetric.iv_hex = self.sym_iv.read(cx).take_value();
+        self.asymmetric.input_text = self.asym_input.read(cx).take_value();
+        self.hash.input_text = self.hash_input.read(cx).take_value();
+        self.pq_signature.input_text = self.pq_signature_message.read(cx).take_value();
     }
 
-    pub fn set_focus(&mut self, field: Option<usize>) {
-        self.focused_field = field;
+    pub fn sync_tool_state_to_inputs(&mut self, cx: &mut gpui::App) {
+        self.sym_input.update(cx, |input, _| {
+            input.set_value(self.symmetric.input_hex.clone());
+            input.set_error(self.symmetric.error.clone());
+        });
+        self.sym_key.update(cx, |input, _| {
+            input.set_value(self.symmetric.key_hex.clone());
+            input.set_error(self.symmetric.error.clone());
+        });
+        self.sym_iv.update(cx, |input, _| {
+            input.set_value(self.symmetric.iv_hex.clone());
+            input.set_error(self.symmetric.error.clone());
+        });
+        self.asym_input.update(cx, |input, _| {
+            input.set_value(self.asymmetric.input_text.clone());
+            input.set_error(self.asymmetric.error.clone());
+        });
+        self.hash_input.update(cx, |input, _| {
+            input.set_value(self.hash.input_text.clone());
+            input.set_error(self.hash.error.clone());
+        });
+        self.pq_signature_message.update(cx, |input, _| {
+            input.set_value(self.pq_signature.input_text.clone());
+            input.set_error(self.pq_signature.error.clone());
+        });
+    }
+
+    pub fn focused_input_field(&self, window: &gpui::Window, cx: &gpui::App) -> Option<AlgoInputField> {
+        [
+            AlgoInputField::SymInput,
+            AlgoInputField::SymKey,
+            AlgoInputField::SymIv,
+            AlgoInputField::AsymInput,
+            AlgoInputField::HashInput,
+            AlgoInputField::PqSignatureMessage,
+        ]
+        .into_iter()
+        .find(|field| self.input_for_field(*field).read(cx).focus_handle.is_focused(window))
     }
 
     pub fn menu_items(&self) -> Vec<SharedString> {

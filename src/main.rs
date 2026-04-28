@@ -16,7 +16,7 @@ fn main() {
                 window_bounds: Some(WindowBounds::Windowed(bounds)),
                 ..Default::default()
             },
-            |_window, cx| cx.new(|cx| DevToolsApp::new(cx)),
+            |window, cx| cx.new(|cx| DevToolsApp::new(window, cx)),
         )
         .unwrap();
     });

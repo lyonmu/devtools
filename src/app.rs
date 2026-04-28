@@ -1,6 +1,7 @@
-use gpui::{div, px, rgb, ElementId, InteractiveElement, IntoElement, MouseButton, ParentElement, SharedString, Styled, Context, Window, ClipboardItem};
+use gpui::{div, px, rgb, AnyElement, ClipboardItem, Context, ElementId, InteractiveElement, IntoElement, MouseButton, ParentElement, SharedString, StatefulInteractiveElement, Styled, Window};
 
-use crate::tabs::{CertTab, AlgoTab};
+use crate::components::input::render_text_input;
+use crate::tabs::{AlgoInputField, AlgoTab, CertTab};
 use crate::algo::{
     SymmetricAlgo, AsymmetricOp, RsaKeySize, HashAlgo, PqKemAlgo, PqSignatureAlgo,
 };
@@ -17,7 +18,7 @@ pub enum DevToolsApp {
 }
 
 impl DevToolsApp {
-    pub fn new(_cx: &mut gpui::App) -> Self {
+    pub fn new(_window: &mut Window, _cx: &mut Context<Self>) -> Self {
         Self::Cert(CertTab::new())
     }
 
@@ -49,7 +50,7 @@ impl DevToolsApp {
     fn select_tab(&mut self, index: usize, _window: &mut Window, cx: &mut Context<Self>) {
         match index {
             0 => *self = Self::Cert(CertTab::new()),
-            1 => *self = Self::Algo(AlgoTab::new()),
+            1 => *self = Self::Algo(AlgoTab::new(cx)),
             _ => {}
         }
         cx.notify();
@@ -112,44 +113,51 @@ impl DevToolsApp {
         }).detach();
     }
 
-    /// Helper: render an input field with focus tracking via field index
-    fn render_input_field(id_prefix: &str, value: &str, placeholder: &str, field_index: usize, is_focused: bool, cx: &mut Context<Self>) -> gpui::Stateful<gpui::Div> {
-        let display = if value.is_empty() && !is_focused { placeholder } else { value };
-        let text_color = if value.is_empty() && !is_focused { rgb(0x666677) } else { rgb(0xddddcc) };
-        let border_color = if is_focused { rgb(0x3b82f6) } else { rgb(0x3a3a4a) };
-        div()
-            .id(ElementId::Name(SharedString::from(format!("{}-input", id_prefix))))
-            .w_full()
-            .px_3()
-            .py_2()
-            .bg(rgb(0x1e1e2e))
-            .border_1()
-            .border_color(border_color)
-            .rounded_md()
-            .text_size(FONT_BODY)
-            .text_color(text_color)
-            .cursor_text()
-            .on_mouse_down(MouseButton::Left, cx.listener(move |this, _, _, cx| {
-                this.algo_mut().set_focus(Some(field_index));
-                cx.notify();
-            }))
-            .child(div().text_size(FONT_BODY).text_color(text_color).child(display.to_string()))
+    fn sync_algo_inputs_to_tool_state(&mut self, cx: &mut Context<Self>) {
+        if let Self::Algo(t) = self {
+            t.sync_inputs_to_tool_state(cx);
+        }
     }
 
-    fn render_tab_content(&mut self, cx: &mut Context<Self>) -> gpui::Div {
+    fn sync_algo_tool_state_to_inputs(&mut self, cx: &mut Context<Self>) {
+        if let Self::Algo(t) = self {
+            t.sync_tool_state_to_inputs(cx);
+        }
+    }
+
+    fn execute_focused_input(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(field) = (match self {
+            Self::Algo(t) => t.focused_input_field(window, cx),
+            _ => None,
+        }) else {
+            return;
+        };
+        self.sync_algo_inputs_to_tool_state(cx);
+        match field {
+            AlgoInputField::SymInput | AlgoInputField::SymKey | AlgoInputField::SymIv => {
+                self.algo_mut().symmetric.execute();
+            }
+            _ => {}
+        }
+        self.sync_algo_tool_state_to_inputs(cx);
+        cx.notify();
+    }
+
+    fn render_tab_content(&mut self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
         match self {
             Self::Cert(t) => {
                 let content = t.render_content();
                 if t.active_menu == 0 {
                     return div()
-                        .flex_1().flex().flex_col()
+                        .id(ElementId::Name(SharedString::from("cert-tab-content")))
+                        .flex_1().flex().flex_col().overflow_y_scroll()
                         .child(
                             div().flex().flex_row().justify_end().px_4().py_2()
                                 .child(
                                     div()
                                         .id(ElementId::Name(SharedString::from("open-file-btn")))
                                         .px_4().py_2().bg(rgb(0x3b82f6))
-                                        .text_color(rgb(0xffffff)).text_sm().rounded_md().cursor_pointer()
+                                        .text_color(rgb(0xffffff)).text_size(FONT_BODY).rounded_md().cursor_pointer()
                                         .on_mouse_down(MouseButton::Left, cx.listener(|this, _, _window, cx| {
                                             if let DevToolsApp::Cert(_) = this {
                                                 this.open_file_dialog(cx);
@@ -158,37 +166,40 @@ impl DevToolsApp {
                                         .child("选择证书文件"),
                                 ),
                         )
-                        .child(content);
+                        .child(content)
+                        .into_any_element();
                 }
-                content
+                content.into_any_element()
             }
             Self::Algo(t) => {
                 let content = match t.active_menu {
-                    0 => self.render_symmetric_tool(cx),
-                    1 => self.render_asymmetric_tool(cx),
-                    2 => self.render_hash_tool(cx),
+                    0 => self.render_symmetric_tool(window, cx),
+                    1 => self.render_asymmetric_tool(window, cx),
+                    2 => self.render_hash_tool(window, cx),
                     3 => self.render_pq_kem_tool(cx),
-                    4 => self.render_pq_signature_tool(cx),
+                    4 => self.render_pq_signature_tool(window, cx),
                     _ => div().child("未知"),
                 };
                 div()
+                    .id(ElementId::Name(SharedString::from("algo-tab-content")))
                     .flex_1()
-                    .on_key_down(cx.listener(|this: &mut DevToolsApp, event: &gpui::KeyDownEvent, _window, cx| {
-                        if let Some(ch) = &event.keystroke.key_char {
-                            this.algo_mut().handle_key_input(ch);
-                            cx.notify();
-                        } else if event.keystroke.key == "backspace" {
-                            this.algo_mut().handle_backspace();
-                            cx.notify();
+                    .overflow_y_scroll()
+                    .on_key_down(cx.listener(|this: &mut DevToolsApp, event: &gpui::KeyDownEvent, window, cx| {
+                        if event.keystroke.key == "enter" {
+                            this.execute_focused_input(window, cx);
                         }
                     }))
                     .child(content)
+                    .into_any_element()
             }
         }
     }
 
-    fn render_symmetric_tool(&mut self, cx: &mut Context<Self>) -> gpui::Div {
-        let focused = self.algo_mut().focused_field;
+    fn render_symmetric_tool(&mut self, window: &mut Window, cx: &mut Context<Self>) -> gpui::Div {
+        let (sym_input, sym_key, sym_iv) = match self {
+            Self::Algo(t) => (t.sym_input.clone(), t.sym_key.clone(), t.sym_iv.clone()),
+            _ => unreachable!(),
+        };
         let s = &self.algo_mut().symmetric;
 
         let mut container = div()
@@ -227,14 +238,14 @@ impl DevToolsApp {
         );
 
         container = container.child(div().text_size(FONT_BODY).text_color(rgb(0x888899)).child("输入数据 (十六进制):").mt_2());
-        container = container.child(Self::render_input_field("sym-input", &s.input_hex, "输入十六进制数据", 0, focused == Some(0), cx));
+        container = container.child(render_text_input(sym_input, "sym-input", window, cx));
 
         container = container.child(div().text_size(FONT_BODY).text_color(rgb(0x888899)).child("密钥 (十六进制):").mt_2());
-        container = container.child(Self::render_input_field("sym-key", &s.key_hex, &format!("输入 {} 字节密钥", s.selected_algo.key_size()), 1, focused == Some(1), cx));
+        container = container.child(render_text_input(sym_key, "sym-key", window, cx));
 
         if s.selected_algo.needs_iv() {
             container = container.child(div().text_size(FONT_BODY).text_color(rgb(0x888899)).child("IV (十六进制):").mt_2());
-            container = container.child(Self::render_input_field("sym-iv", &s.iv_hex, "输入 16 字节 IV", 2, focused == Some(2), cx));
+            container = container.child(render_text_input(sym_iv, "sym-iv", window, cx));
         }
 
         let need_exec = true;
@@ -247,7 +258,9 @@ impl DevToolsApp {
                             .px_4().py_2().bg(rgb(0x22c55e))
                             .text_color(rgb(0xffffff)).text_size(FONT_BODY).rounded_md().cursor_pointer()
                             .on_mouse_down(MouseButton::Left, cx.listener(|this, _, _, cx| {
+                                this.sync_algo_inputs_to_tool_state(cx);
                                 this.algo_mut().symmetric.execute();
+                                this.sync_algo_tool_state_to_inputs(cx);
                                 cx.notify();
                             }))
                             .child("执行"),
@@ -259,6 +272,7 @@ impl DevToolsApp {
                             .text_color(rgb(0xffffff)).text_size(FONT_BODY).rounded_md().cursor_pointer()
                             .on_mouse_down(MouseButton::Left, cx.listener(|this, _, _, cx| {
                                 this.algo_mut().symmetric.reset();
+                                this.sync_algo_tool_state_to_inputs(cx);
                                 cx.notify();
                             }))
                             .child("重置"),
@@ -279,8 +293,11 @@ impl DevToolsApp {
         container
     }
 
-    fn render_asymmetric_tool(&mut self, cx: &mut Context<Self>) -> gpui::Div {
-        let focused = self.algo_mut().focused_field;
+    fn render_asymmetric_tool(&mut self, window: &mut Window, cx: &mut Context<Self>) -> gpui::Div {
+        let asym_input = match self {
+            Self::Algo(t) => t.asym_input.clone(),
+            _ => unreachable!(),
+        };
         let a = &self.algo_mut().asymmetric;
 
         let mut container = div()
@@ -333,7 +350,9 @@ impl DevToolsApp {
                             .px_4().py_2().bg(rgb(0x22c55e))
                             .text_color(rgb(0xffffff)).text_size(FONT_BODY).rounded_md().cursor_pointer()
                             .on_mouse_down(MouseButton::Left, cx.listener(|this, _, _, cx| {
+                                this.sync_algo_inputs_to_tool_state(cx);
                                 this.algo_mut().asymmetric.execute();
+                                this.sync_algo_tool_state_to_inputs(cx);
                                 cx.notify();
                             }))
                             .child("执行"),
@@ -345,6 +364,7 @@ impl DevToolsApp {
                             .text_color(rgb(0xffffff)).text_size(FONT_BODY).rounded_md().cursor_pointer()
                             .on_mouse_down(MouseButton::Left, cx.listener(|this, _, _, cx| {
                                 this.algo_mut().asymmetric.reset();
+                                this.sync_algo_tool_state_to_inputs(cx);
                                 cx.notify();
                             }))
                             .child("重置"),
@@ -355,7 +375,7 @@ impl DevToolsApp {
         if matches!(a.selected_op, AsymmetricOp::RsaEncrypt | AsymmetricOp::RsaDecrypt) {
             let label = if a.selected_op == AsymmetricOp::RsaEncrypt { "明文输入:" } else { "密文输入 (十六进制):" };
             container = container.child(div().text_size(FONT_BODY).text_color(rgb(0x888899)).child(label).mt_2());
-            container = container.child(Self::render_input_field("asym-input", &a.input_text, "", 3, focused == Some(3), cx));
+            container = container.child(render_text_input(asym_input.clone(), "asym-input", window, cx));
             container = container.child(
                 div().mt_2().flex().flex_row().gap_2()
                     .child(
@@ -364,7 +384,9 @@ impl DevToolsApp {
                             .px_4().py_2().bg(rgb(0x22c55e))
                             .text_color(rgb(0xffffff)).text_size(FONT_BODY).rounded_md().cursor_pointer()
                             .on_mouse_down(MouseButton::Left, cx.listener(|this, _, _, cx| {
+                                this.sync_algo_inputs_to_tool_state(cx);
                                 this.algo_mut().asymmetric.execute();
+                                this.sync_algo_tool_state_to_inputs(cx);
                                 cx.notify();
                             }))
                             .child("执行"),
@@ -376,6 +398,7 @@ impl DevToolsApp {
                             .text_color(rgb(0xffffff)).text_size(FONT_BODY).rounded_md().cursor_pointer()
                             .on_mouse_down(MouseButton::Left, cx.listener(|this, _, _, cx| {
                                 this.algo_mut().asymmetric.reset();
+                                this.sync_algo_tool_state_to_inputs(cx);
                                 cx.notify();
                             }))
                             .child("重置"),
@@ -385,7 +408,7 @@ impl DevToolsApp {
 
         if matches!(a.selected_op, AsymmetricOp::EcdsaSign | AsymmetricOp::EcdsaVerify) {
             container = container.child(div().text_size(FONT_BODY).text_color(rgb(0x888899)).child("消息输入:").mt_2());
-            container = container.child(Self::render_input_field("asym-msg", &a.input_text, "输入要签名的消息", 4, focused == Some(4), cx));
+            container = container.child(render_text_input(asym_input.clone(), "asym-msg", window, cx));
             container = container.child(
                 div().mt_2().flex().flex_row().gap_2()
                     .child(
@@ -394,7 +417,9 @@ impl DevToolsApp {
                             .px_4().py_2().bg(rgb(0x22c55e))
                             .text_color(rgb(0xffffff)).text_size(FONT_BODY).rounded_md().cursor_pointer()
                             .on_mouse_down(MouseButton::Left, cx.listener(|this, _, _, cx| {
+                                this.sync_algo_inputs_to_tool_state(cx);
                                 this.algo_mut().asymmetric.execute();
+                                this.sync_algo_tool_state_to_inputs(cx);
                                 cx.notify();
                             }))
                             .child("执行"),
@@ -406,6 +431,7 @@ impl DevToolsApp {
                             .text_color(rgb(0xffffff)).text_size(FONT_BODY).rounded_md().cursor_pointer()
                             .on_mouse_down(MouseButton::Left, cx.listener(|this, _, _, cx| {
                                 this.algo_mut().asymmetric.reset();
+                                this.sync_algo_tool_state_to_inputs(cx);
                                 cx.notify();
                             }))
                             .child("重置"),
@@ -447,8 +473,11 @@ impl DevToolsApp {
         container
     }
 
-    fn render_hash_tool(&mut self, cx: &mut Context<Self>) -> gpui::Div {
-        let focused = self.algo_mut().focused_field;
+    fn render_hash_tool(&mut self, window: &mut Window, cx: &mut Context<Self>) -> gpui::Div {
+        let hash_input = match self {
+            Self::Algo(t) => t.hash_input.clone(),
+            _ => unreachable!(),
+        };
         let h = &self.algo_mut().hash;
 
         let mut container = div()
@@ -491,7 +520,7 @@ impl DevToolsApp {
             crate::algo::hash::InputFormat::Hex => "输入数据 (十六进制):",
         };
         container = container.child(div().text_size(FONT_BODY).text_color(rgb(0x888899)).child(input_label).mt_2());
-        container = container.child(Self::render_input_field("hash-input", &h.input_text, "输入要计算哈希的数据", 5, focused == Some(5), cx));
+        container = container.child(render_text_input(hash_input, "hash-input", window, cx));
 
         container = container.child(
             div().mt_2().flex().flex_row().gap_2()
@@ -501,7 +530,9 @@ impl DevToolsApp {
                         .px_4().py_2().bg(rgb(0x22c55e))
                         .text_color(rgb(0xffffff)).text_size(FONT_BODY).rounded_md().cursor_pointer()
                         .on_mouse_down(MouseButton::Left, cx.listener(|this, _, _, cx| {
+                            this.sync_algo_inputs_to_tool_state(cx);
                             this.algo_mut().hash.compute();
+                            this.sync_algo_tool_state_to_inputs(cx);
                             cx.notify();
                         }))
                         .child("执行"),
@@ -513,6 +544,7 @@ impl DevToolsApp {
                         .text_color(rgb(0xffffff)).text_size(FONT_BODY).rounded_md().cursor_pointer()
                         .on_mouse_down(MouseButton::Left, cx.listener(|this, _, _, cx| {
                             this.algo_mut().hash.reset();
+                            this.sync_algo_tool_state_to_inputs(cx);
                             cx.notify();
                         }))
                         .child("重置"),
@@ -645,8 +677,11 @@ impl DevToolsApp {
         container
     }
 
-    fn render_pq_signature_tool(&mut self, cx: &mut Context<Self>) -> gpui::Div {
-        let focused = self.algo_mut().focused_field;
+    fn render_pq_signature_tool(&mut self, window: &mut Window, cx: &mut Context<Self>) -> gpui::Div {
+        let pq_signature_message = match self {
+            Self::Algo(t) => t.pq_signature_message.clone(),
+            _ => unreachable!(),
+        };
         let s = &self.algo_mut().pq_signature;
 
         let mut container = div()
@@ -674,7 +709,7 @@ impl DevToolsApp {
         }
 
         container = container.child(div().text_size(FONT_BODY).text_color(rgb(0x888899)).child("消息输入:").mt_2());
-        container = container.child(Self::render_input_field("pq-sig-msg", &s.input_text, "输入要签名的消息", 6, focused == Some(6), cx));
+        container = container.child(render_text_input(pq_signature_message, "pq-sig-msg", window, cx));
 
         container = container.child(
             div().mt_2().flex().flex_row().gap_2()
@@ -695,7 +730,9 @@ impl DevToolsApp {
                         .px_4().py_2().bg(rgb(0x3b82f6))
                         .text_color(rgb(0xffffff)).text_size(FONT_BODY).rounded_md().cursor_pointer()
                         .on_mouse_down(MouseButton::Left, cx.listener(|this, _, _, cx| {
+                            this.sync_algo_inputs_to_tool_state(cx);
                             this.algo_mut().pq_signature.sign();
+                            this.sync_algo_tool_state_to_inputs(cx);
                             cx.notify();
                         }))
                         .child("签名"),
@@ -706,7 +743,9 @@ impl DevToolsApp {
                         .px_4().py_2().bg(rgb(0x8b5cf6))
                         .text_color(rgb(0xffffff)).text_size(FONT_BODY).rounded_md().cursor_pointer()
                         .on_mouse_down(MouseButton::Left, cx.listener(|this, _, _, cx| {
+                            this.sync_algo_inputs_to_tool_state(cx);
                             this.algo_mut().pq_signature.verify();
+                            this.sync_algo_tool_state_to_inputs(cx);
                             cx.notify();
                         }))
                         .child("验证"),
@@ -718,6 +757,7 @@ impl DevToolsApp {
                         .text_color(rgb(0xffffff)).text_size(FONT_BODY).rounded_md().cursor_pointer()
                         .on_mouse_down(MouseButton::Left, cx.listener(|this, _, _, cx| {
                             this.algo_mut().pq_signature.clear();
+                            this.sync_algo_tool_state_to_inputs(cx);
                             cx.notify();
                         }))
                         .child("重置"),
@@ -779,7 +819,7 @@ impl DevToolsApp {
 }
 
 impl gpui::Render for DevToolsApp {
-    fn render(&mut self, _window: &mut Window, cx: &mut gpui::Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut gpui::Context<Self>) -> impl IntoElement {
         let active_tab_index = self.active_tab_index();
         let tab_names = Self::tab_names();
         let menu_items = self.menu_items();
@@ -859,7 +899,7 @@ impl gpui::Render for DevToolsApp {
                             })),
                     )
                     .child(
-                        self.render_tab_content(cx),
+                        self.render_tab_content(window, cx),
                     ),
             )
     }
