@@ -388,3 +388,100 @@ fn build_algorithm_table() -> Vec<AlgorithmInfo> {
         },
     ]
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn registry_new_creates_with_algorithms() {
+        let registry = AlgorithmRegistry::new();
+        assert!(!registry.all().is_empty());
+        assert!(registry.all().len() > 20, "Expected >20 algorithms, got {}", registry.all().len());
+    }
+
+    #[test]
+    fn lookup_by_oid_finds_known_algorithms() {
+        let registry = AlgorithmRegistry::new();
+
+        // SHA-256
+        let sha256 = registry.lookup_by_oid(std_oid::SHA256);
+        assert!(sha256.is_some());
+        assert_eq!(sha256.unwrap().name, "sha256");
+        assert_eq!(sha256.unwrap().category, AlgorithmCategory::Hash);
+
+        // RSA
+        let rsa = registry.lookup_by_oid("1.2.840.113549.1.1.1");
+        assert!(rsa.is_some());
+        assert_eq!(rsa.unwrap().name, "rsaEncryption");
+        assert_eq!(rsa.unwrap().category, AlgorithmCategory::Asymmetric);
+
+        // ML-KEM-512
+        let ml_kem = registry.lookup_by_oid(oid_defs::pq::ML_KEM_512);
+        assert!(ml_kem.is_some());
+        assert_eq!(ml_kem.unwrap().name, "ML-KEM-512");
+        assert_eq!(ml_kem.unwrap().category, AlgorithmCategory::KEM);
+    }
+
+    #[test]
+    fn lookup_by_name_finds_known_algorithms() {
+        let registry = AlgorithmRegistry::new();
+
+        let sha256 = registry.lookup_by_name("sha256");
+        assert!(sha256.is_some());
+        assert_eq!(sha256.unwrap().oid, std_oid::SHA256);
+
+        let sm4 = registry.lookup_by_name("SM4");
+        assert!(sm4.is_some());
+        assert_eq!(sm4.unwrap().oid, oid_defs::gmt::SM4);
+    }
+
+    #[test]
+    fn lookup_by_oid_returns_none_for_unknown() {
+        let registry = AlgorithmRegistry::new();
+        assert!(registry.lookup_by_oid("9.9.9.9.9").is_none());
+    }
+
+    #[test]
+    fn lookup_by_name_returns_none_for_unknown() {
+        let registry = AlgorithmRegistry::new();
+        assert!(registry.lookup_by_name("unknown-algorithm").is_none());
+    }
+
+    #[test]
+    fn all_returns_all_categories() {
+        let registry = AlgorithmRegistry::new();
+        let all = registry.all();
+
+        let has_hash = all.iter().any(|a| a.category == AlgorithmCategory::Hash);
+        let has_asymmetric = all.iter().any(|a| a.category == AlgorithmCategory::Asymmetric);
+        let has_symmetric = all.iter().any(|a| a.category == AlgorithmCategory::Symmetric);
+        let has_signature = all.iter().any(|a| a.category == AlgorithmCategory::Signature);
+        let has_kem = all.iter().any(|a| a.category == AlgorithmCategory::KEM);
+
+        assert!(has_hash, "No Hash algorithms");
+        assert!(has_asymmetric, "No Asymmetric algorithms");
+        assert!(has_symmetric, "No Symmetric algorithms");
+        assert!(has_signature, "No Signature algorithms");
+        assert!(has_kem, "No KEM algorithms");
+    }
+
+    #[test]
+    fn algorithm_category_display() {
+        assert_eq!(AlgorithmCategory::Hash.to_string(), "Hash");
+        assert_eq!(AlgorithmCategory::Asymmetric.to_string(), "非对称");
+        assert_eq!(AlgorithmCategory::Symmetric.to_string(), "对称");
+        assert_eq!(AlgorithmCategory::Signature.to_string(), "签名");
+        assert_eq!(AlgorithmCategory::KEM.to_string(), "密钥封装");
+    }
+
+    #[test]
+    fn algorithm_info_has_required_fields() {
+        let registry = AlgorithmRegistry::new();
+        for algo in registry.all() {
+            assert!(!algo.oid.is_empty(), "Algorithm {} has empty OID", algo.name);
+            assert!(!algo.name.is_empty(), "Algorithm {} has empty name", algo.oid);
+            assert!(!algo.parameters.is_empty(), "Algorithm {} has no parameters", algo.name);
+        }
+    }
+}
