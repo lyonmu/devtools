@@ -112,11 +112,11 @@ Plans:
 - [x] 02-03-PLAN.md — Expand RSA and ECDSA flow/error-path tests
 
 **Wave 4** *(blocked on Wave 3 completion)*
-- [ ] 02-04-PLAN.md — Add certificate fixtures and parser format tests
-- [ ] 02-05-PLAN.md — Add certificate extension and OID helper tests
+- [x] 02-04-PLAN.md — Add certificate fixtures and parser format tests
+- [x] 02-05-PLAN.md — Add certificate extension and OID helper tests
 
 **Wave 5** *(blocked on Wave 4 completion)*
-- [ ] 02-06-PLAN.md — Add PQ tests and enforce final coverage gate
+- [x] 02-06-PLAN.md — Add PQ tests and enforce final coverage gate
 
 Cross-cutting constraints:
 - Hard coverage gate is measured line coverage `>80%` for `src/algo/*` and `src/cert/*`; GPUI/UI files are excluded.
@@ -125,10 +125,10 @@ Cross-cutting constraints:
 - Certificate fixtures must be checked-in, small, public/non-secret test material under `src/cert/fixtures/`.
 
 **Deliverables:**
-- [ ] 补充单元测试
-- [ ] 添加集成测试
-- [ ] 边界条件测试
-- [ ] 性能基准测试
+- [x] 补充单元测试 (85 tests, was 46)
+- [x] 添加集成测试 (certificate fixtures, PQ flows)
+- [x] 边界条件测试 (error paths, malformed inputs)
+- [ ] 性能基准测试 (deferred to Phase 4)
 
 **Dependencies:** Phase 1
 
@@ -139,9 +139,9 @@ Cross-cutting constraints:
 - **Blocked By:** Phase 1
 
 **Acceptance Criteria:**
-- [ ] 核心模块测试覆盖率>80%
-- [ ] 所有算法有单元测试
-- [ ] 集成测试覆盖主要流程
+- [x] 核心模块测试覆盖率>80% (86.8% achieved)
+- [x] 所有算法有单元测试
+- [x] 集成测试覆盖主要流程
 
 **QA Scenarios:**
 
@@ -438,8 +438,8 @@ Phase 4 (功能扩展) ← Phase 6 (最终优化)
 
 | Phase | Status | Progress | Start | End |
 |-------|--------|----------|-------|-----|
-| Phase 1 | ⏳ Pending | 0% | - | - |
-| Phase 2 | ⏳ Pending | 0% | - | - |
+| Phase 1 | ✅ Complete | 100% | 2026-04-28 | 2026-04-28 |
+| Phase 2 | ✅ Complete | 100% | 2026-04-28 | 2026-04-28 |
 | Phase 3 | ⏳ Pending | 0% | - | - |
 | Phase 4 | ⏳ Pending | 0% | - | - |
 | Phase 5 | ⏳ Pending | 0% | - | - |
