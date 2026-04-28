@@ -285,6 +285,96 @@ mod tests {
         assert!(state.error.is_none(), "decapsulate error: {:?}", state.error);
         assert!(state.output_text.contains("共享密钥匹配"));
     }
+
+    #[test]
+    fn ml_kem_variant_keygen_succeeds_for_all_parameter_sets() {
+        for algo in [PqKemAlgo::MlKem512, PqKemAlgo::MlKem768, PqKemAlgo::MlKem1024] {
+            let mut state = PqKemToolState::default();
+            state.select_algo(algo);
+            state.keygen();
+            assert!(state.error.is_none(), "{:?} keygen error: {:?}", algo, state.error);
+            assert!(!state.public_key_hex.is_empty(), "{:?} public key empty", algo);
+            assert!(!state.secret_key_hex.is_empty(), "{:?} secret key empty", algo);
+            assert!(state.output_text.contains(&algo.to_string()), "{:?} output: {}", algo, state.output_text);
+        }
+    }
+
+    #[test]
+    fn encapsulate_without_public_key_reports_error() {
+        let mut state = PqKemToolState::default();
+        state.encapsulate();
+        assert!(state.error.is_some());
+        assert!(state.error.unwrap().contains("请先生成密钥对"));
+    }
+
+    #[test]
+    fn decapsulate_without_secret_key_reports_error() {
+        let mut state = PqKemToolState::default();
+        state.decapsulate();
+        assert!(state.error.is_some());
+        assert!(state.error.unwrap().contains("请先生成密钥对"));
+    }
+
+    #[test]
+    fn decapsulate_without_ciphertext_reports_error() {
+        let mut state = PqKemToolState::default();
+        state.keygen();
+        state.decapsulate();
+        assert!(state.error.is_some());
+        assert!(state.error.unwrap().contains("请先进行封装操作"));
+    }
+
+    #[test]
+    fn invalid_public_key_hex_returns_error() {
+        let mut state = PqKemToolState::default();
+        state.keygen();
+        state.public_key_hex = "not-valid-hex".to_string();
+        state.encapsulate();
+        assert!(state.error.is_some());
+    }
+
+    #[test]
+    fn invalid_secret_key_hex_returns_error() {
+        let mut state = PqKemToolState::default();
+        state.keygen();
+        state.secret_key_hex = "not-valid-hex".to_string();
+        state.ciphertext_hex = "aabb".to_string();
+        state.decapsulate();
+        assert!(state.error.is_some());
+    }
+
+    #[test]
+    fn invalid_ciphertext_hex_returns_error() {
+        let mut state = PqKemToolState::default();
+        state.keygen();
+        state.encapsulate();
+        assert!(state.error.is_none());
+        state.ciphertext_hex = "not-valid-hex".to_string();
+        state.decapsulate();
+        assert!(state.error.is_some());
+    }
+
+    #[test]
+    fn select_algo_and_clear_wipe_outputs_and_errors() {
+        let mut state = PqKemToolState::default();
+        state.keygen();
+        assert!(!state.public_key_hex.is_empty());
+
+        state.select_algo(PqKemAlgo::MlKem768);
+        assert!(state.public_key_hex.is_empty());
+        assert!(state.secret_key_hex.is_empty());
+        assert!(state.error.is_none());
+
+        state.keygen();
+        state.clear();
+        assert!(state.public_key_hex.is_empty());
+        assert!(state.secret_key_hex.is_empty());
+        assert!(state.ciphertext_hex.is_empty());
+        assert!(state.encapsulated_secret.is_empty());
+        assert!(state.decapsulated_secret.is_empty());
+        assert!(state.output_text.is_empty());
+        assert!(state.error.is_none());
+    }
 }
 
 use super::registry::AlgorithmCategory;
