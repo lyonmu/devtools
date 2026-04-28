@@ -93,3 +93,41 @@ impl Focusable for TextInput {
         self.focus_handle.clone()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn committed_replacement_uses_utf16_range_and_clears_marked_text() {
+        let mut value = "A😀中Z".to_string();
+        let mut selection = 0..0;
+        let mut marked = Some(1..5);
+
+        replace_text_at_utf16_range(&mut value, Some(1..3), "B", &mut selection, &mut marked);
+
+        assert_eq!(value, "AB中Z");
+        assert_eq!(selection, 2..2);
+        assert_eq!(marked, None);
+    }
+
+    #[test]
+    fn marked_replacement_tracks_preedit_range_and_relative_selection() {
+        let mut value = "hello".to_string();
+        let mut selection = 5..5;
+        let mut marked = None;
+
+        replace_and_mark_text_at_utf16_range(
+            &mut value,
+            None,
+            "中国",
+            Some(1..2),
+            &mut selection,
+            &mut marked,
+        );
+
+        assert_eq!(value, "hello中国");
+        assert_eq!(marked, Some(5..11));
+        assert_eq!(selection, 8..11);
+    }
+}

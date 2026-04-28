@@ -1,6 +1,7 @@
 mod algo;
 mod app;
 mod cert;
+mod components;
 mod tabs;
 
 use gpui::{px, size, App, Application, Bounds, WindowBounds, WindowOptions, AppContext};
