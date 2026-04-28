@@ -11,65 +11,66 @@ use crate::algo::{
     SymmetricAlgo, AsymmetricOp, RsaKeySize, HashAlgo, PqKemAlgo, PqSignatureAlgo,
 };
 /// Root application view — manages top tab bar, per-tab left menu, and right content.
-pub enum DevToolsApp {
-    Cert(CertTab),
-    Algo(AlgoTab),
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum AppTab {
+    Cert,
+    Algo,
+}
+
+pub struct DevToolsApp {
+    cert_tab: CertTab,
+    algo_tab: AlgoTab,
+    active_tab: AppTab,
 }
 impl DevToolsApp {
-    pub fn new(_window: &mut Window, _cx: &mut Context<Self>) -> Self {
-        Self::Cert(CertTab::new())
+    pub fn new(_window: &mut Window, cx: &mut Context<Self>) -> Self {
+        Self {
+            cert_tab: CertTab::new(),
+            algo_tab: AlgoTab::new(cx),
+            active_tab: AppTab::Cert,
+        }
     }
     fn active_tab_index(&self) -> usize {
-        match self {
-            Self::Cert(_) => 0,
-            Self::Algo(_) => 1,
+        match self.active_tab {
+            AppTab::Cert => 0,
+            AppTab::Algo => 1,
         }
     }
     fn tab_names() -> [&'static str; 2] {
         ["证书解析", "算法解析"]
     }
     fn menu_items(&self) -> Vec<SharedString> {
-        match self {
-            Self::Cert(t) => t.menu_items(),
-            Self::Algo(t) => t.menu_items(),
+        match self.active_tab {
+            AppTab::Cert => self.cert_tab.menu_items(),
+            AppTab::Algo => self.algo_tab.menu_items(),
         }
     }
     fn active_menu(&self) -> usize {
-        match self {
-            Self::Cert(t) => t.active_menu,
-            Self::Algo(t) => t.active_menu,
+        match self.active_tab {
+            AppTab::Cert => self.cert_tab.active_menu,
+            AppTab::Algo => self.algo_tab.active_menu,
         }
     }
     fn select_tab(&mut self, index: usize, _window: &mut Window, cx: &mut Context<Self>) {
         match index {
-            0 => {
-                let mut tab = CertTab::new();
-                tab.error_detail_expanded = false;
-                *self = Self::Cert(tab);
-            },
-            1 => {
-                let mut tab = AlgoTab::new(cx);
-                tab.error_detail_expanded = false;
-                *self = Self::Algo(tab);
-            },
+            0 => self.active_tab = AppTab::Cert,
+            1 => self.active_tab = AppTab::Algo,
             _ => {}
         }
         cx.notify();
     }
     fn select_menu(&mut self, index: usize, _window: &mut Window, cx: &mut Context<Self>) {
-        match self {
-            Self::Cert(t) => t.active_menu = index,
-            Self::Algo(t) => t.active_menu = index,
+        match self.active_tab {
+            AppTab::Cert => self.cert_tab.active_menu = index,
+            AppTab::Algo => self.algo_tab.active_menu = index,
         }
         cx.notify();
     }
     /// Start async file dialog for certificate import.
     fn open_file_dialog(&mut self, cx: &mut Context<Self>) {
-        if let Self::Cert(t) = self {
-            t.is_importing = true;
-            t.import_error = None;
-            cx.notify();
-        }
+        self.cert_tab.is_importing = true;
+        self.cert_tab.import_error = None;
+        cx.notify();
         let weak = cx.weak_entity();
         (**cx).spawn(async move |cx| {
             let file = rfd::AsyncFileDialog::new()
@@ -81,56 +82,48 @@ impl DevToolsApp {
                 let path = file.path().to_path_buf();
                 let result = crate::cert::detect_and_parse(&path);
                 weak.update(cx, |this: &mut Self, cx: &mut Context<Self>| {
-                    if let DevToolsApp::Cert(t) = this {
-                        match result {
-                            Ok(certs) => {
-                                t.is_importing = false;
-                                if let Some(first) = certs.into_iter().next() {
-                                    t.loaded_cert = Some(first);
-                                    t.import_error = None;
-                                }
-                            }
-                            Err(e) => {
-                                t.is_importing = false;
-                                t.import_error = Some(e);
+                    match result {
+                        Ok(certs) => {
+                            this.cert_tab.is_importing = false;
+                            if let Some(first) = certs.into_iter().next() {
+                                this.cert_tab.loaded_cert = Some(first);
+                                this.cert_tab.import_error = None;
                             }
                         }
-                        cx.notify();
+                        Err(e) => {
+                            this.cert_tab.is_importing = false;
+                            this.cert_tab.import_error = Some(e);
+                        }
                     }
+                    cx.notify();
                 }).ok();
             } else {
                 weak.update(cx, |this: &mut Self, cx: &mut Context<Self>| {
-                    if let DevToolsApp::Cert(t) = this {
-                        t.is_importing = false;
-                        cx.notify();
-                    }
+                    this.cert_tab.is_importing = false;
+                    cx.notify();
                 }).ok();
             }
         }).detach();
     }
     fn copy_to_clipboard_with_status(&mut self, text: String, cx: &mut Context<Self>) {
         (**cx).write_to_clipboard(ClipboardItem::new_string(text));
-        match self {
-            Self::Cert(tab) => tab.copy_status = Some("已复制".to_string()),
-            Self::Algo(tab) => tab.copy_status = Some("已复制".to_string()),
+        match self.active_tab {
+            AppTab::Cert => self.cert_tab.copy_status = Some("已复制".to_string()),
+            AppTab::Algo => self.algo_tab.copy_status = Some("已复制".to_string()),
         }
         cx.notify();
     }
     fn sync_algo_inputs_to_tool_state(&mut self, cx: &mut Context<Self>) {
-        if let Self::Algo(t) = self {
-            t.sync_inputs_to_tool_state(cx);
-        }
+        self.algo_tab.sync_inputs_to_tool_state(cx);
     }
     fn sync_algo_tool_state_to_inputs(&mut self, cx: &mut Context<Self>) {
-        if let Self::Algo(t) = self {
-            t.sync_tool_state_to_inputs(cx);
-        }
+        self.algo_tab.sync_tool_state_to_inputs(cx);
     }
     fn execute_focused_input(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(field) = (match self {
-            Self::Algo(t) => t.focused_input_field(window, cx),
-            _ => None,
-        }) else {
+        if self.active_tab != AppTab::Algo {
+            return;
+        }
+        let Some(field) = self.algo_tab.focused_input_field(window, cx) else {
             return;
         };
         self.sync_algo_inputs_to_tool_state(cx);
@@ -144,8 +137,9 @@ impl DevToolsApp {
         cx.notify();
     }
     fn render_tab_content(&mut self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
-        match self {
-            Self::Cert(t) => {
+        match self.active_tab {
+            AppTab::Cert => {
+                let t = &mut self.cert_tab;
                 let content = t.render_content(cx);
                 if t.active_menu == 0 {
                     let cert_status = if let Some(status) = &t.copy_status {
@@ -180,7 +174,7 @@ impl DevToolsApp {
                                                 .px_4().py_2().bg(COLOR_INFO)
                                                 .text_color(COLOR_TEXT_PRIMARY).text_size(FONT_BODY).rounded_md().cursor_pointer()
                                                 .on_mouse_down(MouseButton::Left, cx.listener(|this, _, _window, cx| {
-                                                    if let DevToolsApp::Cert(_) = this {
+                                                    if this.active_tab == AppTab::Cert {
                                                         this.open_file_dialog(cx);
                                                     }
                                                 }))
@@ -201,8 +195,9 @@ impl DevToolsApp {
                 };
                 wrapper.child(content).into_any_element()
             }
-            Self::Algo(t) => {
-                let content = match t.active_menu {
+            AppTab::Algo => {
+                let active_menu = self.algo_tab.active_menu;
+                let content = match active_menu {
                     0 => self.render_symmetric_tool(window, cx),
                     1 => self.render_asymmetric_tool(window, cx),
                     2 => self.render_hash_tool(window, cx),
@@ -225,10 +220,15 @@ impl DevToolsApp {
         }
     }
     fn render_symmetric_tool(&mut self, window: &mut Window, cx: &mut Context<Self>) -> gpui::Div {
-        let (sym_input, sym_key, sym_iv, copy_status, err_expanded, is_executing) = match self {
-            Self::Algo(t) => (t.sym_input.clone(), t.sym_key.clone(), t.sym_iv.clone(), t.copy_status.clone(), t.error_detail_expanded, t.is_executing),
-            _ => unreachable!(),
-        };
+        let t = &self.algo_tab;
+        let (sym_input, sym_key, sym_iv, copy_status, err_expanded, is_executing) = (
+            t.sym_input.clone(),
+            t.sym_key.clone(),
+            t.sym_iv.clone(),
+            t.copy_status.clone(),
+            t.error_detail_expanded,
+            t.is_executing,
+        );
         let s = &self.algo_mut().symmetric;
         let mut container = div()
             .flex_1().p_4().gap_4().flex().flex_col()
@@ -319,10 +319,9 @@ impl DevToolsApp {
         container
     }
     fn render_asymmetric_tool(&mut self, window: &mut Window, cx: &mut Context<Self>) -> gpui::Div {
-        let (asym_input, copy_status, err_expanded) = match self {
-            Self::Algo(t) => (t.asym_input.clone(), t.copy_status.clone(), t.error_detail_expanded),
-            _ => unreachable!(),
-        };
+        let t = &self.algo_tab;
+        let (asym_input, copy_status, err_expanded) =
+            (t.asym_input.clone(), t.copy_status.clone(), t.error_detail_expanded);
         let a = &self.algo_mut().asymmetric;
         let mut container = div()
             .flex_1().p_4().gap_4().flex().flex_col()
@@ -477,10 +476,9 @@ impl DevToolsApp {
         container
     }
     fn render_hash_tool(&mut self, window: &mut Window, cx: &mut Context<Self>) -> gpui::Div {
-        let (hash_input, copy_status, err_expanded) = match self {
-            Self::Algo(t) => (t.hash_input.clone(), t.copy_status.clone(), t.error_detail_expanded),
-            _ => unreachable!(),
-        };
+        let t = &self.algo_tab;
+        let (hash_input, copy_status, err_expanded) =
+            (t.hash_input.clone(), t.copy_status.clone(), t.error_detail_expanded);
         let h = &self.algo_mut().hash;
         let mut container = div()
             .flex_1().p_4().gap_4().flex().flex_col()
@@ -562,10 +560,8 @@ impl DevToolsApp {
         container
     }
     fn render_pq_kem_tool(&mut self, cx: &mut Context<Self>) -> gpui::Div {
-        let (copy_status, err_expanded) = match self {
-            Self::Algo(t) => (t.copy_status.clone(), t.error_detail_expanded),
-            _ => unreachable!(),
-        };
+        let t = &self.algo_tab;
+        let (copy_status, err_expanded) = (t.copy_status.clone(), t.error_detail_expanded);
         let k = &self.algo_mut().pq_kem;
         let mut container = div()
             .flex_1().p_4().gap_4().flex().flex_col()
@@ -663,10 +659,12 @@ impl DevToolsApp {
         container
     }
     fn render_pq_signature_tool(&mut self, window: &mut Window, cx: &mut Context<Self>) -> gpui::Div {
-        let (pq_signature_message, copy_status, err_expanded) = match self {
-            Self::Algo(t) => (t.pq_signature_message.clone(), t.copy_status.clone(), t.error_detail_expanded),
-            _ => unreachable!(),
-        };
+        let t = &self.algo_tab;
+        let (pq_signature_message, copy_status, err_expanded) = (
+            t.pq_signature_message.clone(),
+            t.copy_status.clone(),
+            t.error_detail_expanded,
+        );
         let s = &self.algo_mut().pq_signature;
         let mut container = div()
             .flex_1().p_4().gap_4().flex().flex_col()
@@ -800,9 +798,13 @@ impl DevToolsApp {
             .text_color(rgb(0xfecaca))
             .cursor_pointer()
             .on_mouse_down(MouseButton::Left, cx.listener(|this, _, _, cx| {
-                match this {
-                    Self::Cert(t) => t.error_detail_expanded = !t.error_detail_expanded,
-                    Self::Algo(t) => t.error_detail_expanded = !t.error_detail_expanded,
+                match this.active_tab {
+                    AppTab::Cert => {
+                        this.cert_tab.error_detail_expanded = !this.cert_tab.error_detail_expanded
+                    }
+                    AppTab::Algo => {
+                        this.algo_tab.error_detail_expanded = !this.algo_tab.error_detail_expanded
+                    }
                 }
                 cx.notify();
             }))
@@ -826,10 +828,10 @@ impl DevToolsApp {
             .child(div().text_size(FONT_BODY).text_color(COLOR_TEXT_SECONDARY).child(text.to_string()))
     }
     fn algo_mut(&mut self) -> &mut AlgoTab {
-        match self {
-            Self::Algo(t) => t,
-            _ => unreachable!(),
-        }
+        &mut self.algo_tab
+    }
+    pub(crate) fn cert_tab_mut(&mut self) -> &mut CertTab {
+        &mut self.cert_tab
     }
 }
 impl gpui::Render for DevToolsApp {
