@@ -1,10 +1,11 @@
 #![allow(dead_code)]
 use rand::rngs::OsRng;
-use rsa::{RsaPrivateKey, RsaPublicKey, Pkcs1v15Encrypt, traits::PublicKeyParts};
+use rsa::{RsaPrivateKey, RsaPublicKey, Oaep, Pkcs1v15Encrypt, traits::PublicKeyParts};
 use rsa::pkcs8::{LineEnding, DecodePrivateKey, DecodePublicKey, EncodePrivateKey, EncodePublicKey};
 use p256::ecdsa::{self, SigningKey, VerifyingKey};
 use p256::SecretKey;
 use rsa::signature::{Signer, Verifier};
+use sha2::Sha256;
 
 /// Supported asymmetric operations
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -59,6 +60,22 @@ impl RsaKeySize {
     }
 }
 
+/// RSA padding modes
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum RsaPaddingMode {
+    OaepSha256,
+    Pkcs1v15Compat,
+}
+
+impl std::fmt::Display for RsaPaddingMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            RsaPaddingMode::OaepSha256 => write!(f, "OAEP-SHA256"),
+            RsaPaddingMode::Pkcs1v15Compat => write!(f, "PKCS#1 v1.5"),
+        }
+    }
+}
+
 /// State for the asymmetric crypto tool
 pub struct AsymmetricToolState {
     pub selected_op: AsymmetricOp,
@@ -66,6 +83,7 @@ pub struct AsymmetricToolState {
     pub output_text: String,
     pub error: Option<String>,
     pub rsa_key_size: RsaKeySize,
+    pub rsa_padding_mode: RsaPaddingMode,
     pub rsa_pub_key_pem: String,
     pub rsa_priv_key_pem: String,
     pub signature_hex: String,
@@ -82,6 +100,7 @@ impl Default for AsymmetricToolState {
             output_text: String::new(),
             error: None,
             rsa_key_size: RsaKeySize::B2048,
+            rsa_padding_mode: RsaPaddingMode::OaepSha256,
             rsa_pub_key_pem: String::new(),
             rsa_priv_key_pem: String::new(),
             signature_hex: String::new(),
@@ -111,6 +130,16 @@ fn hex_decode(hex: &str) -> Result<Vec<u8>, String> {
 }
 
 impl AsymmetricToolState {
+    fn rsa_max_plaintext_len(key_size: usize, padding: RsaPaddingMode) -> usize {
+        match padding {
+            RsaPaddingMode::OaepSha256 => {
+                let hash_len = 32;
+                key_size.saturating_sub(2 * hash_len + 2)
+            }
+            RsaPaddingMode::Pkcs1v15Compat => key_size.saturating_sub(11),
+        }
+    }
+
     pub fn execute(&mut self) {
         self.error = None;
         self.output_text.clear();
@@ -155,11 +184,21 @@ impl AsymmetricToolState {
         };
         let mut rng = OsRng;
         let plaintext = self.input_text.as_bytes();
-        if plaintext.len() > public_key.size() - 11 {
-            self.error = Some(format!("明文过长，RSA-{} 最多加密 {} 字节", public_key.n().bits(), public_key.size() - 11));
+        let max_len = Self::rsa_max_plaintext_len(public_key.size(), self.rsa_padding_mode);
+        if plaintext.len() > max_len {
+            self.error = Some(format!(
+                "明文过长，RSA-{} 在 {} 模式下最多加密 {} 字节",
+                public_key.n().bits(),
+                self.rsa_padding_mode,
+                max_len
+            ));
             return;
         }
-        match public_key.encrypt(&mut rng, Pkcs1v15Encrypt, plaintext) {
+        let result = match self.rsa_padding_mode {
+            RsaPaddingMode::OaepSha256 => public_key.encrypt(&mut rng, Oaep::new::<Sha256>(), plaintext),
+            RsaPaddingMode::Pkcs1v15Compat => public_key.encrypt(&mut rng, Pkcs1v15Encrypt, plaintext),
+        };
+        match result {
             Ok(ciphertext) => { self.output_text = hex_encode(&ciphertext); }
             Err(e) => { self.error = Some(format!("加密失败: {}", e)); }
         }
@@ -178,7 +217,11 @@ impl AsymmetricToolState {
             Ok(b) => b,
             Err(e) => { self.error = Some(format!("密文格式错误: {}", e)); return; }
         };
-        match private_key.decrypt(Pkcs1v15Encrypt, &ciphertext) {
+        let result = match self.rsa_padding_mode {
+            RsaPaddingMode::OaepSha256 => private_key.decrypt(Oaep::new::<Sha256>(), &ciphertext),
+            RsaPaddingMode::Pkcs1v15Compat => private_key.decrypt(Pkcs1v15Encrypt, &ciphertext),
+        };
+        match result {
             Ok(plaintext) => { self.output_text = String::from_utf8_lossy(&plaintext).to_string(); }
             Err(e) => { self.error = Some(format!("解密失败: {}", e)); }
         }
@@ -269,6 +312,12 @@ impl AsymmetricToolState {
         self.error = None;
     }
 
+    pub fn select_rsa_padding_mode(&mut self, mode: RsaPaddingMode) {
+        self.rsa_padding_mode = mode;
+        self.output_text.clear();
+        self.error = None;
+    }
+
     pub fn reset(&mut self) {
         self.input_text.clear();
         self.output_text.clear();
@@ -301,6 +350,7 @@ mod tests {
             output_text: state.output_text.clone(),
             error: state.error.clone(),
             rsa_key_size: state.rsa_key_size,
+            rsa_padding_mode: state.rsa_padding_mode,
             rsa_pub_key_pem: state.rsa_pub_key_pem.clone(),
             rsa_priv_key_pem: state.rsa_priv_key_pem.clone(),
             signature_hex: state.signature_hex.clone(),
@@ -311,7 +361,7 @@ mod tests {
     }
 
     #[test]
-    fn test_rsa_encrypt_decrypt_roundtrip() {
+    fn test_rsa_encrypt_decrypt_roundtrip_default_oaep() {
         let mut state = AsymmetricToolState::default();
         state.rsa_keygen();
         assert!(state.rsa_pub_key_pem.contains("PUBLIC KEY"));
@@ -328,6 +378,25 @@ mod tests {
         state.execute();
         assert!(state.error.is_none(), "decrypt error: {:?}", state.error);
         assert_eq!(state.output_text, "Hello RSA");
+    }
+
+    #[test]
+    fn test_rsa_encrypt_decrypt_roundtrip_pkcs1v15_compat() {
+        let mut state = AsymmetricToolState::default();
+        state.rsa_keygen();
+        state.select_rsa_padding_mode(RsaPaddingMode::Pkcs1v15Compat);
+
+        state.selected_op = AsymmetricOp::RsaEncrypt;
+        state.input_text = "Hello RSA Compat".to_string();
+        state.execute();
+        assert!(state.error.is_none(), "encrypt error: {:?}", state.error);
+        let ciphertext = state.output_text.clone();
+
+        state.selected_op = AsymmetricOp::RsaDecrypt;
+        state.input_text = ciphertext;
+        state.execute();
+        assert!(state.error.is_none(), "decrypt error: {:?}", state.error);
+        assert_eq!(state.output_text, "Hello RSA Compat");
     }
 
     #[test]
@@ -367,6 +436,7 @@ mod tests {
         oversized.input_text = "x".repeat(300);
         oversized.execute();
         assert!(oversized.error.as_deref().unwrap_or_default().contains("明文过长"));
+        assert!(oversized.error.as_deref().unwrap_or_default().contains("190 字节"));
         assert!(oversized.output_text.is_empty());
     }
 
@@ -505,6 +575,7 @@ mod tests {
             output_text: "结果".to_string(),
             error: Some("错误".to_string()),
             rsa_key_size: RsaKeySize::B3072,
+            rsa_padding_mode: RsaPaddingMode::Pkcs1v15Compat,
             rsa_pub_key_pem: "public".to_string(),
             rsa_priv_key_pem: "private".to_string(),
             signature_hex: "abcd".to_string(),
@@ -517,6 +588,7 @@ mod tests {
 
         assert_eq!(state.selected_op, AsymmetricOp::EcdsaVerify);
         assert_eq!(state.rsa_key_size, RsaKeySize::B3072);
+        assert_eq!(state.rsa_padding_mode, RsaPaddingMode::Pkcs1v15Compat);
         assert!(state.input_text.is_empty());
         assert!(state.output_text.is_empty());
         assert!(state.error.is_none());
