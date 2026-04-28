@@ -31,9 +31,17 @@
 **Plans:** 3 plans
 
 Plans:
+
+**Wave 1**
 - [ ] 01-01-PLAN.md — Extract shared UI helpers (status banners, result cards, buttons, constants)
+
+**Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 01-02-PLAN.md — Refactor app.rs and tabs/mod.rs to use shared UI helpers
 - [ ] 01-03-PLAN.md — Create CryptoTool trait and implement for all algorithm tool states
+
+Cross-cutting constraints:
+- Shared UI constants/helpers must preserve existing GPUI behavior and Chinese copy while reducing duplication.
+- Full phase verification requires `cargo build -p devtools` and `cargo test -p devtools` to pass.
 
 **Deliverables:**
 - [ ] 重构left_menu为可复用组件
