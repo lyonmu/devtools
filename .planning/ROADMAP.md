@@ -106,7 +106,7 @@ Plans:
 - [x] 02-01-PLAN.md — Establish tarpaulin coverage harness and waiver ledger
 
 **Wave 2** *(blocked on Wave 1 completion)*
-- [ ] 02-02-PLAN.md — Add deterministic hash and symmetric algorithm tests
+- [x] 02-02-PLAN.md — Add deterministic hash and symmetric algorithm tests
 
 **Wave 3** *(blocked on Wave 2 completion)*
 - [ ] 02-03-PLAN.md — Expand RSA and ECDSA flow/error-path tests
