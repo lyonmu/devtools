@@ -5,9 +5,11 @@ pub mod asymmetric;
 pub mod hash;
 pub mod pq_kem;
 pub mod pq_signature;
+pub mod tool_trait;
 
 pub use symmetric::{SymmetricAlgo, SymmetricToolState};
 pub use asymmetric::{AsymmetricOp, AsymmetricToolState, RsaKeySize};
 pub use hash::{HashAlgo, HashToolState};
 pub use pq_kem::{PqKemAlgo, PqKemToolState};
 pub use pq_signature::{PqSignatureAlgo, PqSignatureToolState};
+pub use tool_trait::CryptoTool;
