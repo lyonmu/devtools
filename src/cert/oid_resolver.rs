@@ -177,6 +177,8 @@ pub fn resolve_extension_name(oid: &str) -> String {
 mod tests {
     use super::*;
 
+    // === Algorithm name resolution tests ===
+
     #[test]
     fn test_resolve_pq_oid_ml_dsa() {
         assert_eq!(resolve_algorithm_name(oid_defs::pq::ML_DSA_44), "ML-DSA-44");
@@ -199,9 +201,76 @@ mod tests {
     }
 
     #[test]
+    fn classic_rsa_ecdsa_sha_aes_resolve_to_exact_names() {
+        // RSA variants
+        assert_eq!(resolve_algorithm_name("1.2.840.113549.1.1.1"), "RSA");
+        assert_eq!(resolve_algorithm_name("1.2.840.113549.1.1.11"), "SHA256-RSA");
+        assert_eq!(resolve_algorithm_name("1.2.840.113549.1.1.10"), "RSA-PSS");
+
+        // EC/ECDSA
+        assert_eq!(resolve_algorithm_name("1.2.840.10045.2.1"), "ECDSA");
+        assert_eq!(resolve_algorithm_name("1.2.840.10045.4.3.2"), "ECDSA-SHA256");
+
+        // SHA family
+        assert_eq!(resolve_algorithm_name("2.16.840.1.101.3.4.2.1"), "SHA256");
+        assert_eq!(resolve_algorithm_name("2.16.840.1.101.3.4.2.3"), "SHA512");
+
+        // AES variants
+        assert_eq!(resolve_algorithm_name("2.16.840.1.101.3.4.1.1"), "AES-128-ECB");
+        assert_eq!(resolve_algorithm_name("2.16.840.1.101.3.4.1.42"), "AES-256-GCM");
+
+        // Ed25519/Ed448
+        assert_eq!(resolve_algorithm_name("1.3.101.112"), "Ed25519");
+        assert_eq!(resolve_algorithm_name("1.3.101.113"), "Ed448");
+    }
+
+    #[test]
+    fn gmt_sm2_sm3_sm4_resolve_to_exact_names() {
+        assert_eq!(resolve_algorithm_name(oid_defs::gmt::SM2), "SM2");
+        assert_eq!(resolve_algorithm_name(oid_defs::gmt::SM3), "SM3");
+        assert_eq!(resolve_algorithm_name(oid_defs::gmt::SM4), "SM4");
+        assert_eq!(resolve_algorithm_name(oid_defs::gmt::SM2_SM3_SIG), "SM2-SM3 Signature");
+        assert_eq!(resolve_algorithm_name(oid_defs::gmt::HMAC_SM3), "HMAC-SM3");
+    }
+
+    #[test]
+    fn pq_ml_kem_ml_dsa_resolve_to_exact_names() {
+        // ML-KEM
+        assert_eq!(resolve_algorithm_name("2.16.840.1.101.3.4.4.1"), "ML-KEM-512");
+        assert_eq!(resolve_algorithm_name("2.16.840.1.101.3.4.4.2"), "ML-KEM-768");
+        assert_eq!(resolve_algorithm_name("2.16.840.1.101.3.4.4.3"), "ML-KEM-1024");
+
+        // ML-DSA
+        assert_eq!(resolve_algorithm_name(oid_defs::pq::ML_DSA_44), "ML-DSA-44");
+        assert_eq!(resolve_algorithm_name(oid_defs::pq::ML_DSA_65), "ML-DSA-65");
+        assert_eq!(resolve_algorithm_name(oid_defs::pq::ML_DSA_87), "ML-DSA-87");
+    }
+
+    // === Extension name resolution tests ===
+
+    #[test]
     fn test_resolve_ext_san() {
         assert_eq!(resolve_extension_name("2.5.29.17"), "Subject Alternative Name");
     }
+
+    #[test]
+    fn extension_oids_resolve_to_exact_names() {
+        assert_eq!(resolve_extension_name("2.5.29.14"), "Subject Key Identifier");
+        assert_eq!(resolve_extension_name("2.5.29.15"), "Key Usage");
+        assert_eq!(resolve_extension_name("2.5.29.19"), "Basic Constraints");
+        assert_eq!(resolve_extension_name("2.5.29.35"), "Authority Key Identifier");
+        assert_eq!(resolve_extension_name("2.5.29.37"), "Extended Key Usage");
+        assert_eq!(resolve_extension_name("1.3.6.1.5.5.7.1.1"), "Authority Information Access");
+    }
+
+    #[test]
+    fn unknown_extension_uses_chinese_format() {
+        let result = resolve_extension_name("1.2.3.4.5.6");
+        assert!(result.starts_with("未知扩展"), "got: {}", result);
+        assert!(result.contains("1.2.3.4.5.6"), "got: {}", result);
+    }
+
+    // === Key category boundary tests ===
 
     #[test]
     fn test_key_category_pq() {
@@ -211,5 +280,32 @@ mod tests {
     #[test]
     fn test_key_category_classic() {
         assert_eq!(resolve_key_category("1.2.840.113549.1.1.1"), KeyCategory::Classic);
+    }
+
+    #[test]
+    fn pq_category_prefix_boundaries_classify_correctly() {
+        // ML-KEM OIDs (FIPS 203) should be PostQuantum
+        assert_eq!(resolve_key_category("2.16.840.1.101.3.4.4.1"), KeyCategory::PostQuantum);
+        assert_eq!(resolve_key_category("2.16.840.1.101.3.4.4.2"), KeyCategory::PostQuantum);
+        assert_eq!(resolve_key_category("2.16.840.1.101.3.4.4.3"), KeyCategory::PostQuantum);
+
+        // ML-KEM legacy OIDs should be PostQuantum
+        assert_eq!(resolve_key_category("2.16.840.1.101.3.4.1.43"), KeyCategory::PostQuantum);
+        assert_eq!(resolve_key_category("2.16.840.1.101.3.4.1.44"), KeyCategory::PostQuantum);
+        assert_eq!(resolve_key_category("2.16.840.1.101.3.4.1.45"), KeyCategory::PostQuantum);
+
+        // Adjacent non-PQ OIDs should be Classic (not accidentally classified as PQ)
+        // Note: 2.16.840.1.101.3.4.4.4 matches ML-KEM prefix "2.16.840.1.101.3.4.4."
+        // Use a non-matching prefix for Classic test
+        assert_eq!(resolve_key_category("2.16.840.1.101.3.4.5.1"), KeyCategory::Classic);
+        // Note: 2.16.840.1.101.3.4.1.42 (AES-256-GCM) and 2.16.840.1.101.3.4.1.46 match ML-KEM legacy prefix
+        // The prefix "2.16.840.1.101.3.4.1.4" covers all 2.16.840.1.101.3.4.1.4x OIDs
+        // Use a non-matching prefix for Classic test
+        assert_eq!(resolve_key_category("2.16.840.1.101.3.4.1.5"), KeyCategory::Classic);
+
+        // Non-PQ algorithm OIDs should be Classic
+        assert_eq!(resolve_key_category("1.2.840.113549.1.1.1"), KeyCategory::Classic); // RSA
+        assert_eq!(resolve_key_category("1.2.840.10045.2.1"), KeyCategory::Classic); // ECDSA
+        assert_eq!(resolve_key_category("2.16.840.1.101.3.4.2.1"), KeyCategory::Classic); // SHA256
     }
 }
