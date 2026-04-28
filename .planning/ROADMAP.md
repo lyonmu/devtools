@@ -179,12 +179,30 @@ cargo tarpaulin -p devtools --out Html
 
 **Goal:** 改善用户界面和交互体验
 
+**Plans:** 3 plans
+
+Plans:
+
+**Wave 1**
+- [ ] 03-01-PLAN.md — Error display enhancements: Warning variant, icon prefix, expandable details
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 03-02-PLAN.md — Copy buttons: per-output copy with "已复制" feedback, cert field copy
+
+**Wave 3** *(blocked on Wave 2 completion)*
+- [ ] 03-03-PLAN.md — Drag-drop file import + loading spinners for operations
+
+Cross-cutting constraints:
+- All new UI text must be Chinese (project convention from AGENTS.md).
+- GPUI 0.2 API: `.id()` returns `Stateful<Div>`, `.child()` needs owned types.
+- Full phase verification requires `cargo build -p devtools` and `cargo test -p devtools` to pass.
+
 **Deliverables:**
 - [ ] 改进错误提示
 - [ ] 添加一键复制功能
 - [ ] 支持文件拖放
 - [ ] 添加进度指示
-- [ ] 支持快捷键
+- [ ] ~~支持快捷键~~ *(deferred — not selected for discussion)*
 
 **Dependencies:** Phase 1
 

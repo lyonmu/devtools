@@ -32,7 +32,7 @@ progress:
 
 **Goal:** 完善功能、优化架构、提高质量
 
-**Next Action:** 进入 Phase 3 — UI/UX改进
+**Next Action:** Execute Phase 3 — UI/UX改进 (3 plans)
 
 ---
 
@@ -42,7 +42,7 @@ progress:
 |-------|--------|----------|-------|
 | Phase 1: 架构重构 | ✅ Complete | 100% | 3/3 plans executed |
 | Phase 2: 测试完善 | ✅ Complete | 100% | 6/6 plans executed, 85 tests, 86.8% core coverage |
-| Phase 3: UI/UX改进 | 🔄 Context | 0% | 依赖Phase 1, context gathered |
+| Phase 3: UI/UX改进 | 📋 Planned | 0% | 3 plans, 3 waves — ready to execute |
 | Phase 4: 功能扩展 | ⏳ Pending | 0% | 依赖Phase 2 |
 | Phase 5: 文档完善 | ⏳ Pending | 0% | 依赖Phase 3 |
 | Phase 6: 最终优化 | ⏳ Pending | 0% | 依赖Phase 4,5 |
@@ -107,8 +107,8 @@ progress:
 
 ## 🚀 Next Steps
 
-1. **Immediate:** 进入 Phase 3 计划阶段 — UI/UX改进
-2. **Short-term:** 基于 Phase 1 的共享 UI helper 和 CryptoTool trait 完成 UI/UX 计划
+1. **Immediate:** Execute Phase 3 — UI/UX改进 (3 plans, 3 waves)
+2. **Short-term:** Phase 3 Plan 01 (error display) → Plan 02 (copy buttons) → Plan 03 (drag-drop + spinner)
 3. **Medium-term:** 完成 Phase 4/5
 4. **Long-term:** 完成 Phase 6 并发布
 
