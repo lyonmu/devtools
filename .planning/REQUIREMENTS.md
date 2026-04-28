@@ -55,7 +55,7 @@ cargo test -p devtools -- algo::pq_signature
 |----|----------|----------|--------|
 | R2.1 | 支持文本/十六进制输入格式 | High | 🟢 Met |
 | R2.2 | 支持Base64/PEM/DER输出格式 | High | 🟡 Partial |
-| R2.3 | 提供清晰的错误信息 | High | 🟡 Partial |
+| R2.3 | 提供清晰的错误信息 | High | 🟢 Met |
 | R2.4 | 支持一键复制结果 | Medium | 🔴 Not Met |
 | R2.5 | 支持导入导出密钥 | Medium | 🔴 Not Met |
 | R2.6 | 支持批量处理 | Low | 🔴 Not Met |
@@ -97,9 +97,9 @@ cargo test -p devtools -- algo::pq_signature
 
 | ID | Criteria | Priority | Status |
 |----|----------|----------|--------|
-| R4.1 | 统一的算法接口 | High | 🟡 Partial |
+| R4.1 | 统一的算法接口 | High | 🟢 Met |
 | R4.2 | 算法注册机制 | High | 🟢 Met |
-| R4.3 | 组件化UI | Medium | 🟡 Partial |
+| R4.3 | 组件化UI | Medium | 🟢 Met |
 | R4.4 | 插件系统 | Low | 🔴 Not Met |
 
 **验证方法：**
@@ -154,12 +154,12 @@ cargo tarpaulin -p devtools --out Html
 
 | Priority | Total | Met | Partial | Not Met |
 |----------|-------|-----|---------|---------|
-| High | 15 | 9 | 4 | 2 |
-| Medium | 8 | 1 | 2 | 5 |
+| High | 15 | 11 | 2 | 2 |
+| Medium | 8 | 2 | 1 | 5 |
 | Low | 5 | 0 | 1 | 4 |
-| **Total** | **28** | **10** | **7** | **11** |
+| **Total** | **28** | **13** | **4** | **11** |
 
-**完成度：** 35.7% (10/28)
+**完成度：** 46.4% (13/28)
 
 ---
 
