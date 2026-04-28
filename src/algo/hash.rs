@@ -171,6 +171,114 @@ mod tests {
         assert_eq!(state.output_hex.len(), 64);
     }
 
+    fn compute_hex(algo: HashAlgo, input: &str, format: InputFormat) -> HashToolState {
+        let mut state = HashToolState::default();
+        state.select_algo(algo);
+        state.input_text = input.to_string();
+        state.input_format = format;
+        state.compute();
+        state
+    }
+
+    #[test]
+    fn known_answer_vectors_for_abc_match_published_digests() {
+        let cases = [
+            (
+                HashAlgo::Sha256,
+                "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+            ),
+            (
+                HashAlgo::Sha384,
+                concat!(
+                    "cb00753f45a35e8bb5a03d699ac65007272c32ab0eded163",
+                    "1a8b605a43ff5bed8086072ba1e7cc2358baeca134c825a7"
+                ),
+            ),
+            (
+                HashAlgo::Sha512,
+                concat!(
+                    "ddaf35a193617abacc417349ae20413112e6fa4e89a97ea2",
+                    "0a9eeee64b55d39a2192992a274fc1a836ba3c23a3feebbd",
+                    "454d4423643ce80e2a9ac94fa54ca49f"
+                ),
+            ),
+            (
+                HashAlgo::Sm3,
+                concat!(
+                    "66c7f0f462eeedd9d1f2d46bdc10e4e24167c4875cf2f7a2",
+                    "297da02b8f4ba8e0"
+                ),
+            ),
+        ];
+
+        for (algo, expected) in cases {
+            let state = compute_hex(algo, "abc", InputFormat::Text);
+            assert!(state.error.is_none(), "{algo:?} error: {:?}", state.error);
+            assert_eq!(state.output_hex, expected);
+        }
+    }
+
+    #[test]
+    fn text_and_hex_input_produce_identical_sha256_output() {
+        let text_state = compute_hex(HashAlgo::Sha256, "abc", InputFormat::Text);
+        let hex_state = compute_hex(HashAlgo::Sha256, "616263", InputFormat::Hex);
+
+        assert!(text_state.error.is_none());
+        assert!(hex_state.error.is_none());
+        assert_eq!(text_state.output_hex, hex_state.output_hex);
+    }
+
+    #[test]
+    fn invalid_hex_input_sets_error_and_leaves_output_empty() {
+        for input in ["abc", "zz"] {
+            let state = compute_hex(HashAlgo::Sha256, input, InputFormat::Hex);
+
+            assert!(state.output_hex.is_empty());
+            assert!(
+                state.error.as_deref().unwrap_or_default().contains("输入格式错误"),
+                "unexpected error for {input}: {:?}",
+                state.error
+            );
+        }
+    }
+
+    #[test]
+    fn empty_text_hashes_to_sha256_empty_string_digest() {
+        let state = compute_hex(HashAlgo::Sha256, "", InputFormat::Text);
+
+        assert!(state.error.is_none());
+        assert_eq!(
+            state.output_hex,
+            concat!(
+                "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934",
+                "ca495991b7852b855"
+            )
+        );
+    }
+
+    #[test]
+    fn changing_algorithm_or_format_clears_output_and_error() {
+        let mut state = HashToolState {
+            selected_algo: HashAlgo::Sha256,
+            input_text: "abc".to_string(),
+            input_format: InputFormat::Text,
+            output_hex: "digest".to_string(),
+            error: Some("错误".to_string()),
+        };
+
+        state.select_algo(HashAlgo::Sha512);
+        assert_eq!(state.selected_algo, HashAlgo::Sha512);
+        assert!(state.output_hex.is_empty());
+        assert!(state.error.is_none());
+
+        state.output_hex = "digest".to_string();
+        state.error = Some("错误".to_string());
+        state.toggle_format();
+        assert_eq!(state.input_format, InputFormat::Hex);
+        assert!(state.output_hex.is_empty());
+        assert!(state.error.is_none());
+    }
+
     #[test]
     fn test_sm3_hash() {
         let mut state = HashToolState::default();
@@ -241,4 +349,3 @@ impl CryptoTool for HashToolState {
     fn output_display(&self) -> String { self.output_hex.clone() }
     fn error_display(&self) -> Option<&str> { self.error.as_deref() }
 }
-
