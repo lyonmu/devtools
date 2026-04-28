@@ -103,7 +103,7 @@ cargo test -p devtools
 Plans:
 
 **Wave 1**
-- [ ] 02-01-PLAN.md — Establish tarpaulin coverage harness and waiver ledger
+- [x] 02-01-PLAN.md — Establish tarpaulin coverage harness and waiver ledger
 
 **Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 02-02-PLAN.md — Add deterministic hash and symmetric algorithm tests
