@@ -32,6 +32,7 @@ pub struct CertTab {
     pub import_error: Option<String>,
     pub is_importing: bool,
     pub copy_status: Option<String>,
+    pub error_detail_expanded: bool,
 }
 impl CertTab {
     pub fn new() -> Self {
@@ -41,6 +42,7 @@ impl CertTab {
             import_error: None,
             is_importing: false,
             copy_status: None,
+            error_detail_expanded: false,
         }
     }
     pub fn menu_items(&self) -> Vec<SharedString> {
@@ -238,6 +240,7 @@ pub struct AlgoTab {
     pub asym_input: Entity<TextInputState>,
     pub hash_input: Entity<TextInputState>,
     pub pq_signature_message: Entity<TextInputState>,
+    pub error_detail_expanded: bool,
 }
 impl AlgoTab {
     pub fn new(cx: &mut gpui::Context<crate::app::DevToolsApp>) -> Self {
@@ -255,6 +258,7 @@ impl AlgoTab {
             asym_input: cx.new(|cx| TextInputState::new("输入文本或密文", InputKind::MultiLine, cx)),
             hash_input: cx.new(|cx| TextInputState::new("输入要计算哈希的数据", InputKind::MultiLine, cx)),
             pq_signature_message: cx.new(|cx| TextInputState::new("输入要签名的消息", InputKind::MultiLine, cx)),
+            error_detail_expanded: false,
         }
     }
     pub fn input_for_field(&self, field: AlgoInputField) -> Entity<TextInputState> {

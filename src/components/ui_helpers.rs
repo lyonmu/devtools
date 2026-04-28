@@ -28,23 +28,29 @@ pub const COLOR_SUCCESS: Rgba = rgb_const(0x22c55e);
 pub const COLOR_ERROR: Rgba = rgb_const(0xf87171);
 pub const COLOR_INFO: Rgba = rgb_const(0x3b82f6);
 
+/// Color constant for warning severity (amber/yellow)
+pub const COLOR_WARNING: Rgba = rgb_const(0xfbbf24);
+
 /// Status banner variants for consistent status display
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum UiStatusKind {
     Empty,
     Success,
     Error,
+    Warning,
     Info,
 }
 
-/// Render a status banner with colored left border
+/// Render a status banner with colored left border and icon prefix
 pub fn render_status_banner(kind: UiStatusKind, message: impl Into<String>) -> gpui::Div {
-    let (border, text) = match kind {
-        UiStatusKind::Empty => (rgb(0x888899), rgb(0xaaaabb)),
-        UiStatusKind::Success => (COLOR_SUCCESS, rgb(0xbbf7d0)),
-        UiStatusKind::Error => (COLOR_ERROR, rgb(0xfecaca)),
-        UiStatusKind::Info => (COLOR_INFO, rgb(0xbfdbfe)),
+    let (border, text, icon) = match kind {
+        UiStatusKind::Empty => (rgb(0x888899), rgb(0xaaaabb), ""),
+        UiStatusKind::Success => (COLOR_SUCCESS, rgb(0xbbf7d0), ""),
+        UiStatusKind::Error => (COLOR_ERROR, rgb(0xfecaca), "⚠ "),
+        UiStatusKind::Warning => (COLOR_WARNING, rgb(0xfde68a), ""),
+        UiStatusKind::Info => (COLOR_INFO, rgb(0xbfdbfe), ""),
     };
+    let display_text = format!("{}{}", icon, message.into());
     div()
         .w_full()
         .px_3()
@@ -55,7 +61,7 @@ pub fn render_status_banner(kind: UiStatusKind, message: impl Into<String>) -> g
         .rounded_md()
         .text_size(FONT_BODY)
         .text_color(text)
-        .child(message.into())
+        .child(display_text)
 }
 
 /// Render a monospaced output block with scroll
@@ -142,12 +148,32 @@ mod tests {
 
     #[test]
     fn test_status_kind_variants() {
-        // Ensure all 4 variants exist and are distinguishable
+        // Ensure all 5 variants exist and are distinguishable
         let _empty = UiStatusKind::Empty;
         let _success = UiStatusKind::Success;
         let _error = UiStatusKind::Error;
+        let _warning = UiStatusKind::Warning;
         let _info = UiStatusKind::Info;
         assert_ne!(UiStatusKind::Empty, UiStatusKind::Success);
         assert_ne!(UiStatusKind::Error, UiStatusKind::Info);
+        assert_ne!(UiStatusKind::Warning, UiStatusKind::Error);
+        assert_ne!(UiStatusKind::Warning, UiStatusKind::Info);
+    }
+
+    #[test]
+    fn test_warning_variant_distinct() {
+        assert_ne!(UiStatusKind::Warning, UiStatusKind::Error);
+        assert_ne!(UiStatusKind::Warning, UiStatusKind::Info);
+        assert_ne!(UiStatusKind::Warning, UiStatusKind::Success);
+        assert_ne!(UiStatusKind::Warning, UiStatusKind::Empty);
+    }
+
+    #[test]
+    fn test_color_warning_defined() {
+        // COLOR_WARNING should be amber/yellow (0xfbbf24)
+        // Just verify it compiles and is distinct from other colors
+        assert_ne!(COLOR_WARNING, COLOR_ERROR);
+        assert_ne!(COLOR_WARNING, COLOR_INFO);
+        assert_ne!(COLOR_WARNING, COLOR_SUCCESS);
     }
 }

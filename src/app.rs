@@ -42,8 +42,16 @@ impl DevToolsApp {
     }
     fn select_tab(&mut self, index: usize, _window: &mut Window, cx: &mut Context<Self>) {
         match index {
-            0 => *self = Self::Cert(CertTab::new()),
-            1 => *self = Self::Algo(AlgoTab::new(cx)),
+            0 => {
+                let mut tab = CertTab::new();
+                tab.error_detail_expanded = false;
+                *self = Self::Cert(tab);
+            },
+            1 => {
+                let mut tab = AlgoTab::new(cx);
+                tab.error_detail_expanded = false;
+                *self = Self::Algo(tab);
+            },
             _ => {}
         }
         cx.notify();
@@ -145,7 +153,12 @@ impl DevToolsApp {
                     } else if t.is_importing {
                         render_status_banner(UiStatusKind::Info, "正在解析证书...")
                     } else if let Some(err) = &t.import_error {
-                        render_status_banner(UiStatusKind::Error, format!("导入失败: {err}"))
+                        Self::render_expandable_error(
+                            &format!("导入失败: {err}"),
+                            err,
+                            t.error_detail_expanded,
+                            cx,
+                        )
                     } else if let Some(cert) = &t.loaded_cert {
                         render_status_banner(UiStatusKind::Success, format!("导入成功: {}", cert.subject))
                     } else {
@@ -207,8 +220,8 @@ impl DevToolsApp {
         }
     }
     fn render_symmetric_tool(&mut self, window: &mut Window, cx: &mut Context<Self>) -> gpui::Div {
-        let (sym_input, sym_key, sym_iv, copy_status) = match self {
-            Self::Algo(t) => (t.sym_input.clone(), t.sym_key.clone(), t.sym_iv.clone(), t.copy_status.clone()),
+        let (sym_input, sym_key, sym_iv, copy_status, err_expanded) = match self {
+            Self::Algo(t) => (t.sym_input.clone(), t.sym_key.clone(), t.sym_iv.clone(), t.copy_status.clone(), t.error_detail_expanded),
             _ => unreachable!(),
         };
         let s = &self.algo_mut().symmetric;
@@ -255,7 +268,7 @@ impl DevToolsApp {
         let status = if let Some(status) = copy_status {
             render_status_banner(UiStatusKind::Success, status)
         } else if let Some(err) = &s.error {
-            render_status_banner(UiStatusKind::Error, format!("错误: {err}"))
+            Self::render_expandable_error(&format!("错误: {err}"), err, err_expanded, cx)
         } else if !s.output_hex.is_empty() {
             render_status_banner(UiStatusKind::Success, "执行完成")
         } else {
@@ -272,6 +285,7 @@ impl DevToolsApp {
                                 this.sync_algo_inputs_to_tool_state(cx);
                                 this.algo_mut().symmetric.execute();
                                 this.sync_algo_tool_state_to_inputs(cx);
+                                this.algo_mut().error_detail_expanded = false;
                                 cx.notify();
                             })),
                     )
@@ -279,6 +293,7 @@ impl DevToolsApp {
                         render_action_button("sym-reset-btn", "重置", rgb(0x6b7280))
                             .on_mouse_down(MouseButton::Left, cx.listener(|this, _, _, cx| {
                                 this.algo_mut().symmetric.reset();
+                                this.algo_mut().error_detail_expanded = false;
                                 this.sync_algo_tool_state_to_inputs(cx);
                                 cx.notify();
                             })),
@@ -297,8 +312,8 @@ impl DevToolsApp {
         container
     }
     fn render_asymmetric_tool(&mut self, window: &mut Window, cx: &mut Context<Self>) -> gpui::Div {
-        let (asym_input, copy_status) = match self {
-            Self::Algo(t) => (t.asym_input.clone(), t.copy_status.clone()),
+        let (asym_input, copy_status, err_expanded) = match self {
+            Self::Algo(t) => (t.asym_input.clone(), t.copy_status.clone(), t.error_detail_expanded),
             _ => unreachable!(),
         };
         let a = &self.algo_mut().asymmetric;
@@ -308,7 +323,7 @@ impl DevToolsApp {
         let status = if let Some(status) = copy_status {
             render_status_banner(UiStatusKind::Success, status)
         } else if let Some(err) = &a.error {
-            render_status_banner(UiStatusKind::Error, format!("错误: {err}"))
+            Self::render_expandable_error(&format!("错误: {err}"), err, err_expanded, cx)
         } else if !a.output_text.is_empty() || !a.rsa_pub_key_pem.is_empty() || !a.signature_hex.is_empty() {
             render_status_banner(UiStatusKind::Success, "执行完成")
         } else {
@@ -359,6 +374,7 @@ impl DevToolsApp {
                             .on_mouse_down(MouseButton::Left, cx.listener(|this, _, _, cx| {
                                 this.sync_algo_inputs_to_tool_state(cx);
                                 this.algo_mut().asymmetric.execute();
+                                this.algo_mut().error_detail_expanded = false;
                                 this.sync_algo_tool_state_to_inputs(cx);
                                 cx.notify();
                             })),
@@ -367,6 +383,7 @@ impl DevToolsApp {
                         render_action_button("asym-reset-btn", "重置", rgb(0x6b7280))
                             .on_mouse_down(MouseButton::Left, cx.listener(|this, _, _, cx| {
                                 this.algo_mut().asymmetric.reset();
+                                this.algo_mut().error_detail_expanded = false;
                                 this.sync_algo_tool_state_to_inputs(cx);
                                 cx.notify();
                             })),
@@ -384,6 +401,7 @@ impl DevToolsApp {
                             .on_mouse_down(MouseButton::Left, cx.listener(|this, _, _, cx| {
                                 this.sync_algo_inputs_to_tool_state(cx);
                                 this.algo_mut().asymmetric.execute();
+                                this.algo_mut().error_detail_expanded = false;
                                 this.sync_algo_tool_state_to_inputs(cx);
                                 cx.notify();
                             })),
@@ -392,6 +410,7 @@ impl DevToolsApp {
                         render_action_button("asym-reset-btn2", "重置", rgb(0x6b7280))
                             .on_mouse_down(MouseButton::Left, cx.listener(|this, _, _, cx| {
                                 this.algo_mut().asymmetric.reset();
+                                this.algo_mut().error_detail_expanded = false;
                                 this.sync_algo_tool_state_to_inputs(cx);
                                 cx.notify();
                             })),
@@ -408,6 +427,7 @@ impl DevToolsApp {
                             .on_mouse_down(MouseButton::Left, cx.listener(|this, _, _, cx| {
                                 this.sync_algo_inputs_to_tool_state(cx);
                                 this.algo_mut().asymmetric.execute();
+                                this.algo_mut().error_detail_expanded = false;
                                 this.sync_algo_tool_state_to_inputs(cx);
                                 cx.notify();
                             })),
@@ -416,6 +436,7 @@ impl DevToolsApp {
                         render_action_button("asym-reset-btn3", "重置", rgb(0x6b7280))
                             .on_mouse_down(MouseButton::Left, cx.listener(|this, _, _, cx| {
                                 this.algo_mut().asymmetric.reset();
+                                this.algo_mut().error_detail_expanded = false;
                                 this.sync_algo_tool_state_to_inputs(cx);
                                 cx.notify();
                             })),
@@ -451,8 +472,8 @@ impl DevToolsApp {
         container
     }
     fn render_hash_tool(&mut self, window: &mut Window, cx: &mut Context<Self>) -> gpui::Div {
-        let (hash_input, copy_status) = match self {
-            Self::Algo(t) => (t.hash_input.clone(), t.copy_status.clone()),
+        let (hash_input, copy_status, err_expanded) = match self {
+            Self::Algo(t) => (t.hash_input.clone(), t.copy_status.clone(), t.error_detail_expanded),
             _ => unreachable!(),
         };
         let h = &self.algo_mut().hash;
@@ -462,7 +483,7 @@ impl DevToolsApp {
         let status = if let Some(status) = copy_status {
             render_status_banner(UiStatusKind::Success, status)
         } else if let Some(err) = &h.error {
-            render_status_banner(UiStatusKind::Error, format!("错误: {err}"))
+            Self::render_expandable_error(&format!("错误: {err}"), err, err_expanded, cx)
         } else if !h.output_hex.is_empty() {
             render_status_banner(UiStatusKind::Success, "执行完成")
         } else {
@@ -511,6 +532,7 @@ impl DevToolsApp {
                         .on_mouse_down(MouseButton::Left, cx.listener(|this, _, _, cx| {
                             this.sync_algo_inputs_to_tool_state(cx);
                             this.algo_mut().hash.compute();
+                            this.algo_mut().error_detail_expanded = false;
                             this.sync_algo_tool_state_to_inputs(cx);
                             cx.notify();
                         })),
@@ -519,6 +541,7 @@ impl DevToolsApp {
                     render_action_button("hash-reset-btn", "重置", rgb(0x6b7280))
                         .on_mouse_down(MouseButton::Left, cx.listener(|this, _, _, cx| {
                             this.algo_mut().hash.reset();
+                            this.algo_mut().error_detail_expanded = false;
                             this.sync_algo_tool_state_to_inputs(cx);
                             cx.notify();
                         })),
@@ -536,8 +559,8 @@ impl DevToolsApp {
         container
     }
     fn render_pq_kem_tool(&mut self, cx: &mut Context<Self>) -> gpui::Div {
-        let copy_status = match self {
-            Self::Algo(t) => t.copy_status.clone(),
+        let (copy_status, err_expanded) = match self {
+            Self::Algo(t) => (t.copy_status.clone(), t.error_detail_expanded),
             _ => unreachable!(),
         };
         let k = &self.algo_mut().pq_kem;
@@ -547,7 +570,7 @@ impl DevToolsApp {
         let status = if let Some(status) = copy_status {
             render_status_banner(UiStatusKind::Success, status)
         } else if let Some(err) = &k.error {
-            render_status_banner(UiStatusKind::Error, format!("错误: {err}"))
+            Self::render_expandable_error(&format!("错误: {err}"), err, err_expanded, cx)
         } else if !k.output_text.is_empty() || !k.public_key_hex.is_empty() || !k.ciphertext_hex.is_empty() {
             render_status_banner(UiStatusKind::Success, "执行完成")
         } else {
@@ -579,6 +602,7 @@ impl DevToolsApp {
                     render_action_button("kem-keygen-btn", "生成密钥", COLOR_SUCCESS)
                         .on_mouse_down(MouseButton::Left, cx.listener(|this, _, _, cx| {
                             this.algo_mut().pq_kem.keygen();
+                            this.algo_mut().error_detail_expanded = false;
                             cx.notify();
                         })),
                 )
@@ -586,6 +610,7 @@ impl DevToolsApp {
                     render_action_button("kem-encap-btn", "封装", COLOR_INFO)
                         .on_mouse_down(MouseButton::Left, cx.listener(|this, _, _, cx| {
                             this.algo_mut().pq_kem.encapsulate();
+                            this.algo_mut().error_detail_expanded = false;
                             cx.notify();
                         })),
                 )
@@ -593,6 +618,7 @@ impl DevToolsApp {
                     render_action_button("kem-decap-btn", "解封装", rgb(0x8b5cf6))
                         .on_mouse_down(MouseButton::Left, cx.listener(|this, _, _, cx| {
                             this.algo_mut().pq_kem.decapsulate();
+                            this.algo_mut().error_detail_expanded = false;
                             cx.notify();
                         })),
                 )
@@ -600,6 +626,7 @@ impl DevToolsApp {
                     render_action_button("kem-reset-btn", "重置", rgb(0x6b7280))
                         .on_mouse_down(MouseButton::Left, cx.listener(|this, _, _, cx| {
                             this.algo_mut().pq_kem.clear();
+                            this.algo_mut().error_detail_expanded = false;
                             cx.notify();
                         })),
                 ),
@@ -633,8 +660,8 @@ impl DevToolsApp {
         container
     }
     fn render_pq_signature_tool(&mut self, window: &mut Window, cx: &mut Context<Self>) -> gpui::Div {
-        let (pq_signature_message, copy_status) = match self {
-            Self::Algo(t) => (t.pq_signature_message.clone(), t.copy_status.clone()),
+        let (pq_signature_message, copy_status, err_expanded) = match self {
+            Self::Algo(t) => (t.pq_signature_message.clone(), t.copy_status.clone(), t.error_detail_expanded),
             _ => unreachable!(),
         };
         let s = &self.algo_mut().pq_signature;
@@ -644,7 +671,7 @@ impl DevToolsApp {
         let status = if let Some(status) = copy_status {
             render_status_banner(UiStatusKind::Success, status)
         } else if let Some(err) = &s.error {
-            render_status_banner(UiStatusKind::Error, format!("错误: {err}"))
+            Self::render_expandable_error(&format!("错误: {err}"), err, err_expanded, cx)
         } else if !s.output_text.is_empty() || !s.public_key_hex.is_empty() || !s.signature_hex.is_empty() {
             render_status_banner(UiStatusKind::Success, "执行完成")
         } else {
@@ -678,6 +705,7 @@ impl DevToolsApp {
                     render_action_button("pq-sig-keygen-btn", "生成密钥", COLOR_SUCCESS)
                         .on_mouse_down(MouseButton::Left, cx.listener(|this, _, _, cx| {
                             this.algo_mut().pq_signature.keygen();
+                            this.algo_mut().error_detail_expanded = false;
                             cx.notify();
                         })),
                 )
@@ -686,6 +714,7 @@ impl DevToolsApp {
                         .on_mouse_down(MouseButton::Left, cx.listener(|this, _, _, cx| {
                             this.sync_algo_inputs_to_tool_state(cx);
                             this.algo_mut().pq_signature.sign();
+                            this.algo_mut().error_detail_expanded = false;
                             this.sync_algo_tool_state_to_inputs(cx);
                             cx.notify();
                         })),
@@ -695,6 +724,7 @@ impl DevToolsApp {
                         .on_mouse_down(MouseButton::Left, cx.listener(|this, _, _, cx| {
                             this.sync_algo_inputs_to_tool_state(cx);
                             this.algo_mut().pq_signature.verify();
+                            this.algo_mut().error_detail_expanded = false;
                             this.sync_algo_tool_state_to_inputs(cx);
                             cx.notify();
                         })),
@@ -703,6 +733,7 @@ impl DevToolsApp {
                     render_action_button("pq-sig-reset-btn", "重置", rgb(0x6b7280))
                         .on_mouse_down(MouseButton::Left, cx.listener(|this, _, _, cx| {
                             this.algo_mut().pq_signature.clear();
+                            this.algo_mut().error_detail_expanded = false;
                             this.sync_algo_tool_state_to_inputs(cx);
                             cx.notify();
                         })),
@@ -744,6 +775,45 @@ impl DevToolsApp {
                     }))
                     .child("复制"),
             )
+    }
+    /// Helper: render an expandable error with summary and toggle-able detail
+    fn render_expandable_error(
+        summary: &str,
+        detail: &str,
+        expanded: bool,
+        cx: &mut Context<Self>,
+    ) -> gpui::Div {
+        let summary_text = format!("⚠ {}", summary);
+        let detail_text = detail.to_string();
+        let mut banner = div()
+            .w_full()
+            .px_3()
+            .py_2()
+            .bg(COLOR_BG_PANEL)
+            .border_l_4()
+            .border_color(COLOR_ERROR)
+            .rounded_md()
+            .text_size(FONT_BODY)
+            .text_color(rgb(0xfecaca))
+            .cursor_pointer()
+            .on_mouse_down(MouseButton::Left, cx.listener(|this, _, _, cx| {
+                match this {
+                    Self::Cert(t) => t.error_detail_expanded = !t.error_detail_expanded,
+                    Self::Algo(t) => t.error_detail_expanded = !t.error_detail_expanded,
+                }
+                cx.notify();
+            }))
+            .child(summary_text);
+        if expanded {
+            banner = banner.child(
+                div()
+                    .mt_1()
+                    .text_size(FONT_SMALL)
+                    .text_color(COLOR_TEXT_MUTED)
+                    .child(detail_text),
+            );
+        }
+        banner
     }
     fn algo_mut(&mut self) -> &mut AlgoTab {
         match self {
