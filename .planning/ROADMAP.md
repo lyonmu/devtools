@@ -1,0 +1,409 @@
+# Roadmap — DevTools 密码学桌面工具箱
+
+## 📊 Milestone Overview
+
+| # | Milestone | Status | Progress |
+|---|-----------|--------|----------|
+| v1 | 全面规划与优化 | 🟢 Active | 0% |
+
+---
+
+## 🎯 v1: 全面规划与优化
+
+**Goal:** 完善功能、优化架构、提高质量
+
+**Success Criteria:**
+- 核心算法测试覆盖率>80%
+- UI/UX显著改善
+- 架构清晰可扩展
+- 文档完整
+
+**Timeline:** 2-3个月
+
+---
+
+## 📋 Phase Breakdown
+
+### Phase 1: 架构重构与组件化
+
+**Goal:** 提取可复用组件，统一代码结构
+
+**Deliverables:**
+- [ ] 重构left_menu为可复用组件
+- [ ] 重构tab_bar为可复用组件
+- [ ] 统一算法接口（trait抽象）
+- [ ] 改进状态管理
+
+**Dependencies:** None
+
+**Parallelization:**
+- **Can Run In Parallel:** NO
+- **Parallel Group:** None
+- **Blocks:** Phase 2, Phase 3
+- **Blocked By:** None
+
+**Acceptance Criteria:**
+- [ ] 组件可独立使用
+- [ ] 算法接口统一
+- [ ] 代码复用率提高
+
+**QA Scenarios:**
+
+```
+Scenario: 组件独立渲染
+Tool: cargo test
+Steps:
+1. 创建独立组件实例
+2. 验证渲染结果
+Expected Result: 组件正常渲染
+Evidence: test_components_render
+
+Scenario: 算法接口统一
+Tool: cargo test
+Steps:
+1. 实现新算法
+2. 通过统一接口调用
+Expected Result: 算法正常执行
+Evidence: test_unified_interface
+```
+
+**Commit Strategy:**
+- 1 commit per component refactor
+- 1 commit for interface unification
+
+**Verification Commands:**
+```bash
+cargo build
+cargo test -p devtools
+```
+
+---
+
+### Phase 2: 测试完善
+
+**Goal:** 提高测试覆盖率，确保代码质量
+
+**Deliverables:**
+- [ ] 补充单元测试
+- [ ] 添加集成测试
+- [ ] 边界条件测试
+- [ ] 性能基准测试
+
+**Dependencies:** Phase 1
+
+**Parallelization:**
+- **Can Run In Parallel:** NO
+- **Parallel Group:** None
+- **Blocks:** Phase 4
+- **Blocked By:** Phase 1
+
+**Acceptance Criteria:**
+- [ ] 核心模块测试覆盖率>80%
+- [ ] 所有算法有单元测试
+- [ ] 集成测试覆盖主要流程
+
+**QA Scenarios:**
+
+```
+Scenario: 测试覆盖率检查
+Tool: cargo tarpaulin
+Steps:
+1. 运行覆盖率工具
+2. 检查报告
+Expected Result: 覆盖率>80%
+Evidence: coverage_report.html
+
+Scenario: 单元测试完整性
+Tool: cargo test
+Steps:
+1. 运行所有测试
+2. 检查测试结果
+Expected Result: 所有测试通过
+Evidence: test_results.txt
+```
+
+**Commit Strategy:**
+- 1 commit per module test addition
+- 1 commit for integration tests
+
+**Verification Commands:**
+```bash
+cargo test -p devtools
+cargo tarpaulin -p devtools --out Html
+```
+
+---
+
+### Phase 3: UI/UX改进
+
+**Goal:** 改善用户界面和交互体验
+
+**Deliverables:**
+- [ ] 改进错误提示
+- [ ] 添加一键复制功能
+- [ ] 支持文件拖放
+- [ ] 添加进度指示
+- [ ] 支持快捷键
+
+**Dependencies:** Phase 1
+
+**Parallelization:**
+- **Can Run In Parallel:** YES
+- **Parallel Group:** Phase 3 + Phase 5
+- **Blocks:** Phase 6
+- **Blocked By:** Phase 1
+
+**Acceptance Criteria:**
+- [ ] 错误提示清晰友好
+- [ ] 复制功能正常工作
+- [ ] 文件拖放支持
+- [ ] 长时间操作有进度指示
+
+**QA Scenarios:**
+
+```
+Scenario: 错误提示测试
+Tool: 手动测试
+Steps:
+1. 输入无效数据
+2. 观察错误提示
+Expected Result: 提示清晰友好
+Evidence: screenshot_error.png
+
+Scenario: 复制功能测试
+Tool: 手动测试
+Steps:
+1. 执行加密操作
+2. 点击复制按钮
+3. 粘贴到文本编辑器
+Expected Result: 内容正确复制
+Evidence: screenshot_copy.png
+```
+
+**Commit Strategy:**
+- 1 commit per feature
+- 1 commit for UI polish
+
+**Verification Commands:**
+```bash
+cargo build
+cargo run
+```
+
+---
+
+### Phase 4: 功能扩展
+
+**Goal:** 添加新算法和功能
+
+**Deliverables:**
+- [ ] SM2加密签名支持
+- [ ] SHA-3哈希支持
+- [ ] 算法性能测试
+- [ ] 批量处理支持
+- [ ] 密钥导入导出
+
+**Dependencies:** Phase 2
+
+**Parallelization:**
+- **Can Run In Parallel:** NO
+- **Parallel Group:** None
+- **Blocks:** Phase 6
+- **Blocked By:** Phase 2
+
+**Acceptance Criteria:**
+- [ ] SM2功能完整
+- [ ] SHA-3功能完整
+- [ ] 性能测试准确
+- [ ] 批量处理正常
+
+**QA Scenarios:**
+
+```
+Scenario: SM2功能测试
+Tool: cargo test
+Steps:
+1. 测试SM2加密
+2. 测试SM2解密
+3. 测试SM2签名
+4. 测试SM2验证
+Expected Result: 所有功能正常
+Evidence: test_sm2.txt
+
+Scenario: 性能测试
+Tool: cargo bench
+Steps:
+1. 运行基准测试
+2. 检查结果
+Expected Result: 性能数据准确
+Evidence: bench_results.txt
+```
+
+**Commit Strategy:**
+- 1 commit per algorithm
+- 1 commit for performance testing
+
+**Verification Commands:**
+```bash
+cargo test -p devtools
+cargo bench
+```
+
+---
+
+### Phase 5: 文档完善
+
+**Goal:** 提供完整的用户和开发者文档
+
+**Deliverables:**
+- [ ] 完善README
+- [ ] 添加API文档
+- [ ] 编写架构文档
+- [ ] 创建贡献指南
+
+**Dependencies:** Phase 3
+
+**Parallelization:**
+- **Can Run In Parallel:** YES
+- **Parallel Group:** Phase 3 + Phase 5
+- **Blocks:** Phase 6
+- **Blocked By:** Phase 3
+
+**Acceptance Criteria:**
+- [ ] README完整清晰
+- [ ] API文档可生成
+- [ ] 架构文档准确
+- [ ] 贡献指南实用
+
+**QA Scenarios:**
+
+```
+Scenario: README检查
+Tool: 手动检查
+Steps:
+1. 阅读README
+2. 验证说明准确性
+Expected Result: 说明完整准确
+Evidence: README.md
+
+Scenario: API文档生成
+Tool: cargo doc
+Steps:
+1. 生成文档
+2. 检查完整性
+Expected Result: 文档生成成功
+Evidence: doc_output/
+```
+
+**Commit Strategy:**
+- 1 commit per doc type
+- 1 commit for final review
+
+**Verification Commands:**
+```bash
+cargo doc --open
+```
+
+---
+
+### Phase 6: 最终优化与发布
+
+**Goal:** 最终优化、测试、准备发布
+
+**Deliverables:**
+- [ ] 性能优化
+- [ ] 最终测试
+- [ ] 版本号更新
+- [ ] 发布准备
+
+**Dependencies:** Phase 4, Phase 5
+
+**Parallelization:**
+- **Can Run In Parallel:** NO
+- **Parallel Group:** None
+- **Blocks:** None
+- **Blocked By:** Phase 4, Phase 5
+
+**Acceptance Criteria:**
+- [ ] 性能达标
+- [ ] 所有测试通过
+- [ ] 版本号正确
+- [ ] 发布就绪
+
+**QA Scenarios:**
+
+```
+Scenario: 性能测试
+Tool: cargo bench
+Steps:
+1. 运行基准测试
+2. 对比目标
+Expected Result: 性能达标
+Evidence: bench_final.txt
+
+Scenario: 最终测试
+Tool: cargo test
+Steps:
+1. 运行所有测试
+2. 检查结果
+Expected Result: 所有测试通过
+Evidence: test_final.txt
+```
+
+**Commit Strategy:**
+- 1 commit for optimization
+- 1 commit for version bump
+- 1 commit for release prep
+
+**Verification Commands:**
+```bash
+cargo test -p devtools
+cargo build --release
+```
+
+---
+
+## 📊 Phase Dependencies
+
+```
+Phase 1 (架构重构)
+    ↓
+Phase 2 (测试完善) ← Phase 3 (UI/UX改进) ← Phase 5 (文档完善)
+    ↓                    ↓
+Phase 4 (功能扩展) ← Phase 6 (最终优化)
+```
+
+---
+
+## 🚀 Execution Strategy
+
+### Wave 1 (Week 1-2)
+- Phase 1: 架构重构与组件化
+
+### Wave 2 (Week 3-4)
+- Phase 2: 测试完善
+- Phase 3: UI/UX改进 (并行)
+
+### Wave 3 (Week 5-8)
+- Phase 4: 功能扩展
+- Phase 5: 文档完善 (并行)
+
+### Wave 4 (Week 9-10)
+- Phase 6: 最终优化与发布
+
+---
+
+## 📈 Progress Tracking
+
+| Phase | Status | Progress | Start | End |
+|-------|--------|----------|-------|-----|
+| Phase 1 | ⏳ Pending | 0% | - | - |
+| Phase 2 | ⏳ Pending | 0% | - | - |
+| Phase 3 | ⏳ Pending | 0% | - | - |
+| Phase 4 | ⏳ Pending | 0% | - | - |
+| Phase 5 | ⏳ Pending | 0% | - | - |
+| Phase 6 | ⏳ Pending | 0% | - | - |
+
+---
+
+*Last Updated: 2026-04-28*
