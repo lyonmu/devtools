@@ -85,8 +85,10 @@ impl DevToolsApp {
                         match result {
                             Ok(certs) => {
                                 t.is_importing = false;
-                                if let Some(first) = certs.into_iter().next() {
-                                    t.loaded_cert = Some(first);
+                                let mut cert_iter = certs.into_iter();
+                                if let Some(leaf_cert) = cert_iter.next() {
+                                    let chain: Vec<crate::cert::ParsedCert> = cert_iter.collect();
+                                    t.loaded_cert = Some(leaf_cert.with_chain(chain));
                                     t.import_error = None;
                                 }
                             }
