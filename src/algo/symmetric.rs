@@ -227,6 +227,10 @@ impl SymmetricToolState {
             self.error = Some(format!("密钥长度不正确。{} 需要 {} 字节密钥，当前 {} 字节", self.selected_algo, self.selected_algo.key_size(), key.len()));
             return;
         }
+        if self.mode == CryptoMode::Decrypt && input.len() % 16 != 0 {
+            self.error = Some("密文长度必须为 16 字节的倍数".to_string());
+            return;
+        }
         let result = match self.selected_algo {
             SymmetricAlgo::Aes128Ecb => match self.mode {
                 CryptoMode::Encrypt => aes128_ecb_encrypt(&input, &key),
@@ -266,6 +270,46 @@ impl SymmetricToolState {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    const AES128_KEY: &str = "000102030405060708090a0b0c0d0e0f";
+    const AES256_KEY: &str = "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f";
+    const SM4_KEY: &str = "0123456789abcdeffedcba9876543210";
+    const IV: &str = "000102030405060708090a0b0c0d0e0f";
+
+    fn execute_state(
+        algo: SymmetricAlgo,
+        mode: CryptoMode,
+        input_hex: &str,
+        key_hex: &str,
+        iv_hex: &str,
+    ) -> SymmetricToolState {
+        let mut state = SymmetricToolState::default();
+        state.select_algo(algo);
+        state.mode = mode;
+        state.input_hex = input_hex.to_string();
+        state.key_hex = key_hex.to_string();
+        state.iv_hex = iv_hex.to_string();
+        state.execute();
+        state
+    }
+
+    fn assert_roundtrip(algo: SymmetricAlgo, key_hex: &str, iv_hex: &str) {
+        let plaintext_hex = "48656c6c6f2c20e4b896e7958c2121";
+        let encrypted = execute_state(algo, CryptoMode::Encrypt, plaintext_hex, key_hex, iv_hex);
+        assert!(encrypted.error.is_none(), "encrypt error: {:?}", encrypted.error);
+        assert!(!encrypted.output_hex.is_empty());
+
+        let decrypted = execute_state(
+            algo,
+            CryptoMode::Decrypt,
+            &encrypted.output_hex,
+            key_hex,
+            iv_hex,
+        );
+        assert!(decrypted.error.is_none(), "decrypt error: {:?}", decrypted.error);
+        assert_eq!(decrypted.output_hex, plaintext_hex);
+    }
+
     #[test]
     fn test_aes128_ecb_roundtrip() {
         let key = [0x00u8; 16];
@@ -281,6 +325,91 @@ mod tests {
         let ct = sm4_ecb_encrypt(pt, &key).unwrap();
         let dec = sm4_ecb_decrypt(&ct, &key).unwrap();
         assert_eq!(dec, pt);
+    }
+
+    #[test]
+    fn state_level_roundtrips_cover_all_algorithm_variants() {
+        assert_roundtrip(SymmetricAlgo::Aes128Ecb, AES128_KEY, "");
+        assert_roundtrip(SymmetricAlgo::Aes256Cbc, AES256_KEY, IV);
+        assert_roundtrip(SymmetricAlgo::Sm4Ecb, SM4_KEY, "");
+        assert_roundtrip(SymmetricAlgo::Sm4Cbc, SM4_KEY, IV);
+    }
+
+    #[test]
+    fn known_block_vectors_match_aes128_and_sm4_first_blocks() {
+        let aes_block = "00112233445566778899aabbccddeeff";
+
+        let aes = execute_state(SymmetricAlgo::Aes128Ecb, CryptoMode::Encrypt, aes_block, AES128_KEY, "");
+        assert!(aes.error.is_none(), "AES error: {:?}", aes.error);
+        assert!(aes.output_hex.starts_with("69c4e0d86a7b0430d8cdb78070b4c55a"));
+
+        let sm4 = execute_state(SymmetricAlgo::Sm4Ecb, CryptoMode::Encrypt, SM4_KEY, SM4_KEY, "");
+        assert!(sm4.error.is_none(), "SM4 error: {:?}", sm4.error);
+        assert!(sm4.output_hex.starts_with("681edf34d206965e86b3e94f536e4246"));
+    }
+
+    #[test]
+    fn invalid_input_key_iv_and_padding_set_errors_and_clear_output() {
+        let cases = [
+            execute_state(SymmetricAlgo::Aes128Ecb, CryptoMode::Encrypt, "abc", AES128_KEY, ""),
+            execute_state(SymmetricAlgo::Aes128Ecb, CryptoMode::Encrypt, "00", "00", ""),
+            execute_state(SymmetricAlgo::Aes256Cbc, CryptoMode::Encrypt, "00", AES256_KEY, "00"),
+            execute_state(SymmetricAlgo::Aes128Ecb, CryptoMode::Decrypt, "001122", AES128_KEY, ""),
+        ];
+
+        for state in cases {
+            assert!(state.output_hex.is_empty());
+            assert!(state.error.is_some());
+        }
+    }
+
+    #[test]
+    fn empty_plaintext_encrypts_to_padding_block_and_decrypts_back_to_empty() {
+        let encrypted = execute_state(SymmetricAlgo::Aes128Ecb, CryptoMode::Encrypt, "", AES128_KEY, "");
+        assert!(encrypted.error.is_none(), "encrypt error: {:?}", encrypted.error);
+        assert_eq!(encrypted.output_hex.len(), 32);
+
+        let decrypted = execute_state(
+            SymmetricAlgo::Aes128Ecb,
+            CryptoMode::Decrypt,
+            &encrypted.output_hex,
+            AES128_KEY,
+            "",
+        );
+        assert!(decrypted.error.is_none(), "decrypt error: {:?}", decrypted.error);
+        assert!(decrypted.output_hex.is_empty());
+    }
+
+    #[test]
+    fn select_algo_and_toggle_mode_clear_transient_state() {
+        let mut state = SymmetricToolState {
+            selected_algo: SymmetricAlgo::Aes128Ecb,
+            input_hex: "00".to_string(),
+            key_hex: AES128_KEY.to_string(),
+            iv_hex: "11".repeat(16),
+            output_hex: "deadbeef".to_string(),
+            mode: CryptoMode::Encrypt,
+            error: Some("错误".to_string()),
+        };
+
+        state.toggle_mode();
+        assert_eq!(state.mode, CryptoMode::Decrypt);
+        assert!(state.output_hex.is_empty());
+        assert!(state.error.is_none());
+
+        state.input_hex = "00".to_string();
+        state.key_hex = AES128_KEY.to_string();
+        state.iv_hex = "11".repeat(16);
+        state.output_hex = "deadbeef".to_string();
+        state.error = Some("错误".to_string());
+
+        state.select_algo(SymmetricAlgo::Sm4Cbc);
+        assert_eq!(state.selected_algo, SymmetricAlgo::Sm4Cbc);
+        assert!(state.input_hex.is_empty());
+        assert!(state.key_hex.is_empty());
+        assert!(state.iv_hex.is_empty());
+        assert!(state.output_hex.is_empty());
+        assert!(state.error.is_none());
     }
 
     #[test]
@@ -319,4 +448,3 @@ impl CryptoTool for SymmetricToolState {
     fn output_display(&self) -> String { self.output_hex.clone() }
     fn error_display(&self) -> Option<&str> { self.error.as_deref() }
 }
-
