@@ -4,7 +4,7 @@
 
 | # | Milestone | Status | Progress |
 |---|-----------|--------|----------|
-| v1 | 全面规划与优化 | 🟢 Active | 0% |
+| v1 | 全面规划与优化 | 🟢 Active | 50% |
 
 ---
 
@@ -184,13 +184,13 @@ cargo tarpaulin -p devtools --out Html
 Plans:
 
 **Wave 1**
-- [ ] 03-01-PLAN.md — Error display enhancements: Warning variant, icon prefix, expandable details
+- [x] 03-01-PLAN.md — Error display enhancements: Warning variant, icon prefix, expandable details
 
 **Wave 2** *(blocked on Wave 1 completion)*
-- [ ] 03-02-PLAN.md — Copy buttons: per-output copy with "已复制" feedback, cert field copy
+- [x] 03-02-PLAN.md — Copy buttons: per-output copy with "已复制" feedback, cert field copy
 
 **Wave 3** *(blocked on Wave 2 completion)*
-- [ ] 03-03-PLAN.md — Drag-drop file import + loading spinners for operations
+- [x] 03-03-PLAN.md — Loading spinners for operations (drag-drop skipped: GPUI 0.2 limitation)
 
 Cross-cutting constraints:
 - All new UI text must be Chinese (project convention from AGENTS.md).
@@ -198,10 +198,10 @@ Cross-cutting constraints:
 - Full phase verification requires `cargo build -p devtools` and `cargo test -p devtools` to pass.
 
 **Deliverables:**
-- [ ] 改进错误提示
-- [ ] 添加一键复制功能
-- [ ] 支持文件拖放
-- [ ] 添加进度指示
+- [x] 改进错误提示
+- [x] 添加一键复制功能
+- [ ] ~~支持文件拖放~~ *(skipped — GPUI 0.2 doesn't support OS file drag-drop)*
+- [x] 添加进度指示
 - [ ] ~~支持快捷键~~ *(deferred — not selected for discussion)*
 
 **Dependencies:** Phase 1
@@ -213,10 +213,10 @@ Cross-cutting constraints:
 - **Blocked By:** Phase 1
 
 **Acceptance Criteria:**
-- [ ] 错误提示清晰友好
-- [ ] 复制功能正常工作
-- [ ] 文件拖放支持
-- [ ] 长时间操作有进度指示
+- [x] 错误提示清晰友好
+- [x] 复制功能正常工作
+- [ ] ~~文件拖放支持~~ *(skipped — GPUI 0.2 limitation)*
+- [x] 长时间操作有进度指示
 
 **QA Scenarios:**
 
@@ -458,7 +458,7 @@ Phase 4 (功能扩展) ← Phase 6 (最终优化)
 |-------|--------|----------|-------|-----|
 | Phase 1 | ✅ Complete | 100% | 2026-04-28 | 2026-04-28 |
 | Phase 2 | ✅ Complete | 100% | 2026-04-28 | 2026-04-28 |
-| Phase 3 | ⏳ Pending | 0% | - | - |
+| Phase 3 | ✅ Complete | 100% | 2026-04-28 | 2026-04-28 |
 | Phase 4 | ⏳ Pending | 0% | - | - |
 | Phase 5 | ⏳ Pending | 0% | - | - |
 | Phase 6 | ⏳ Pending | 0% | - | - |

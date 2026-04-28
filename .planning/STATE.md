@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-last_updated: "2026-04-28T07:20:00.000Z"
+last_updated: "2026-04-28T08:30:00.000Z"
 progress:
   total_phases: 6
-  completed_phases: 2
-  total_plans: 9
-  completed_plans: 7
-  percent: 78
+  completed_phases: 3
+  total_plans: 12
+  completed_plans: 10
+  percent: 83
 ---
 
 # Project State — DevTools 密码学桌面工具箱
@@ -20,8 +20,8 @@ progress:
 |--------|-------|
 | Project Status | 🟢 Active |
 | Current Milestone | v1 |
-| Current Phase | Phase 3 Context Gathered |
-| Overall Progress | 78% |
+| Current Phase | Phase 3 Complete |
+| Overall Progress | 83% |
 | Last Updated | 2026-04-28 |
 
 ---
@@ -32,7 +32,7 @@ progress:
 
 **Goal:** 完善功能、优化架构、提高质量
 
-**Next Action:** Execute Phase 3 — UI/UX改进 (3 plans)
+**Next Action:** Execute Phase 4 — 功能扩展
 
 ---
 
@@ -42,7 +42,7 @@ progress:
 |-------|--------|----------|-------|
 | Phase 1: 架构重构 | ✅ Complete | 100% | 3/3 plans executed |
 | Phase 2: 测试完善 | ✅ Complete | 100% | 6/6 plans executed, 85 tests, 86.8% core coverage |
-| Phase 3: UI/UX改进 | 📋 Planned | 0% | 3 plans, 3 waves — ready to execute |
+| Phase 3: UI/UX改进 | ✅ Complete | 100% | 3/3 plans executed, 87 tests |
 | Phase 4: 功能扩展 | ⏳ Pending | 0% | 依赖Phase 2 |
 | Phase 5: 文档完善 | ⏳ Pending | 0% | 依赖Phase 3 |
 | Phase 6: 最终优化 | ⏳ Pending | 0% | 依赖Phase 4,5 |
@@ -65,6 +65,7 @@ progress:
 | 10 | 每个输出块添加复制按钮，文本变化反馈 | 粒度控制，简单反馈 | 2026-04-28 |
 | 11 | 文件导入：按钮 + 拖放，仅证书标签页 | 双重导入方式，最灵活 | 2026-04-28 |
 | 12 | 加载指示器：旋转器 + 文本，禁用输入 | 防止重复提交，一致性 | 2026-04-28 |
+| 13 | 跳过OS文件拖放（GPUI 0.2不支持原生文件拖放） | GPUI 0.2仅支持应用内拖放 | 2026-04-28 |
 
 ---
 
@@ -90,12 +91,12 @@ progress:
 ### Build Status
 
 - **Last Build:** 2026-04-28 (`cargo build -p devtools`)
-- **Status:** Phase 2 Complete
+- **Status:** Phase 3 Complete
 
 ### Test Results
 
-- **Total Tests:** 85 (was 46 at Phase 2 start)
-- **Test Files:** 85 tests passing
+- **Total Tests:** 87 (was 85 at Phase 2 end)
+- **Test Files:** 87 tests passing
 - **Coverage Tool:** cargo tarpaulin -p devtools --out Html
 
 ### Performance
@@ -107,22 +108,22 @@ progress:
 
 ## 🚀 Next Steps
 
-1. **Immediate:** Execute Phase 3 — UI/UX改进 (3 plans, 3 waves)
-2. **Short-term:** Phase 3 Plan 01 (error display) → Plan 02 (copy buttons) → Plan 03 (drag-drop + spinner)
-3. **Medium-term:** 完成 Phase 4/5
+1. **Immediate:** Execute Phase 4 — 功能扩展
+2. **Short-term:** Phase 4 Plan 01 (SM2) → Plan 02 (SHA-3) → Plan 03 (性能测试) → Plan 04 (批量处理) → Plan 05 (密钥导入导出)
+3. **Medium-term:** 完成 Phase 5/6
 4. **Long-term:** 完成 Phase 6 并发布
 
 ---
 
 ## 📝 Notes
 
-- Phase 2 测试完善已完成，核心模块覆盖率达到 86.8%
-- 从 46 个测试增加到 85 个测试
-- 证书解析器有完整的 fixture 测试覆盖
-- PQ 模块（ML-KEM/ML-DSA）有全面的变体和错误路径测试
-- 覆盖率证据已记录在 COVERAGE-WAIVERS.md
-- Phase 3 上下文已收集：错误显示、复制交互、文件导入、进度指示
+- Phase 3 UI/UX改进已完成
+- 新增 Warning 严重性变体和 ⚠ 图标前缀
+- 所有算法输出块和证书信息行都有复制按钮
+- 加载旋转器用于加密操作和证书导入
+- OS文件拖放因GPUI 0.2限制而跳过
 - 快捷键支持已推迟到后续阶段
+- 87个测试全部通过
 
 ---
 
