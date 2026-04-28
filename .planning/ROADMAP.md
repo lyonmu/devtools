@@ -98,6 +98,32 @@ cargo test -p devtools
 
 **Goal:** 提高测试覆盖率，确保代码质量
 
+**Plans:** 6 plans
+
+Plans:
+
+**Wave 1**
+- [ ] 02-01-PLAN.md — Establish tarpaulin coverage harness and waiver ledger
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 02-02-PLAN.md — Add deterministic hash and symmetric algorithm tests
+
+**Wave 3** *(blocked on Wave 2 completion)*
+- [ ] 02-03-PLAN.md — Expand RSA and ECDSA flow/error-path tests
+
+**Wave 4** *(blocked on Wave 3 completion)*
+- [ ] 02-04-PLAN.md — Add certificate fixtures and parser format tests
+- [ ] 02-05-PLAN.md — Add certificate extension and OID helper tests
+
+**Wave 5** *(blocked on Wave 4 completion)*
+- [ ] 02-06-PLAN.md — Add PQ tests and enforce final coverage gate
+
+Cross-cutting constraints:
+- Hard coverage gate is measured line coverage `>80%` for `src/algo/*` and `src/cert/*`; GPUI/UI files are excluded.
+- Verification requires `cargo test -p devtools` and `cargo tarpaulin -p devtools --out Html`.
+- Tests stay inline in source modules; no `tests/` directory, CI, lint, or format tooling is added.
+- Certificate fixtures must be checked-in, small, public/non-secret test material under `src/cert/fixtures/`.
+
 **Deliverables:**
 - [ ] 补充单元测试
 - [ ] 添加集成测试
