@@ -26,7 +26,7 @@
 
 | Phase | Status | Progress | Notes |
 |-------|--------|----------|-------|
-| Phase 1: 架构重构 | ⏳ Pending | 0% | 待开始 |
+| Phase 1: 架构重构 | 📋 Planned | 0% | 3 plans created |
 | Phase 2: 测试完善 | ⏳ Pending | 0% | 依赖Phase 1 |
 | Phase 3: UI/UX改进 | ⏳ Pending | 0% | 依赖Phase 1 |
 | Phase 4: 功能扩展 | ⏳ Pending | 0% | 依赖Phase 2 |

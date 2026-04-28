@@ -28,6 +28,13 @@
 
 **Goal:** 提取可复用组件，统一代码结构
 
+**Plans:** 3 plans
+
+Plans:
+- [ ] 01-01-PLAN.md — Extract shared UI helpers (status banners, result cards, buttons, constants)
+- [ ] 01-02-PLAN.md — Refactor app.rs and tabs/mod.rs to use shared UI helpers
+- [ ] 01-03-PLAN.md — Create CryptoTool trait and implement for all algorithm tool states
+
 **Deliverables:**
 - [ ] 重构left_menu为可复用组件
 - [ ] 重构tab_bar为可复用组件
