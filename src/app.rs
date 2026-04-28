@@ -85,8 +85,8 @@ impl DevToolsApp {
                     match result {
                         Ok(certs) => {
                             this.cert_tab.is_importing = false;
-                            if let Some(first) = certs.into_iter().next() {
-                                this.cert_tab.loaded_cert = Some(first);
+                            if let Some(primary) = crate::cert::build_primary_with_chain(certs) {
+                                this.cert_tab.loaded_cert = Some(primary);
                                 this.cert_tab.import_error = None;
                             }
                         }
@@ -231,7 +231,7 @@ impl DevToolsApp {
         );
         let s = &self.algo_mut().symmetric;
         let mut container = div()
-            .flex_1().p_4().gap_4().flex().flex_col()
+            .w_full().p_4().gap_4().flex().flex_col()
             .child(div().text_size(FONT_TITLE).text_color(COLOR_TEXT_PRIMARY).child("对称算法"));
         container = container.child(
             div().text_size(FONT_BODY).text_color(COLOR_TEXT_SECONDARY).child("算法选择:").mt_2(),
@@ -324,7 +324,7 @@ impl DevToolsApp {
             (t.asym_input.clone(), t.copy_status.clone(), t.error_detail_expanded);
         let a = &self.algo_mut().asymmetric;
         let mut container = div()
-            .flex_1().p_4().gap_4().flex().flex_col()
+            .w_full().p_4().gap_4().flex().flex_col()
             .child(div().text_size(FONT_TITLE).text_color(COLOR_TEXT_PRIMARY).child("非对称算法"));
         let status = if let Some(status) = copy_status {
             render_status_banner(UiStatusKind::Success, status)
@@ -481,7 +481,7 @@ impl DevToolsApp {
             (t.hash_input.clone(), t.copy_status.clone(), t.error_detail_expanded);
         let h = &self.algo_mut().hash;
         let mut container = div()
-            .flex_1().p_4().gap_4().flex().flex_col()
+            .w_full().p_4().gap_4().flex().flex_col()
             .child(div().text_size(FONT_TITLE).text_color(COLOR_TEXT_PRIMARY).child("哈希算法"));
         let status = if let Some(status) = copy_status {
             render_status_banner(UiStatusKind::Success, status)
@@ -564,7 +564,7 @@ impl DevToolsApp {
         let (copy_status, err_expanded) = (t.copy_status.clone(), t.error_detail_expanded);
         let k = &self.algo_mut().pq_kem;
         let mut container = div()
-            .flex_1().p_4().gap_4().flex().flex_col()
+            .w_full().p_4().gap_4().flex().flex_col()
             .child(div().text_size(FONT_TITLE).text_color(COLOR_TEXT_PRIMARY).child("密码封装算法 (KEM)"));
         let status = if let Some(status) = copy_status {
             render_status_banner(UiStatusKind::Success, status)
@@ -667,7 +667,7 @@ impl DevToolsApp {
         );
         let s = &self.algo_mut().pq_signature;
         let mut container = div()
-            .flex_1().p_4().gap_4().flex().flex_col()
+            .w_full().p_4().gap_4().flex().flex_col()
             .child(div().text_size(FONT_TITLE).text_color(COLOR_TEXT_PRIMARY).child("数字签名算法"));
         let status = if let Some(status) = copy_status {
             render_status_banner(UiStatusKind::Success, status)

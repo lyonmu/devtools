@@ -100,6 +100,15 @@ impl ParsedCert {
     }
 }
 
+/// Build a primary certificate with the remaining certificates attached as chain.
+pub fn build_primary_with_chain(mut certs: Vec<ParsedCert>) -> Option<ParsedCert> {
+    if certs.is_empty() {
+        return None;
+    }
+    let primary = certs.remove(0);
+    Some(primary.with_chain(certs))
+}
+
 fn format_serial(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{:02X}", b)).collect::<Vec<_>>().join(":")
 }
@@ -331,6 +340,15 @@ mod tests {
         assert_eq!(certs.len(), 2);
         assert_cert_populated(&certs[0], "chain.pem");
         assert_cert_populated(&certs[1], "chain.pem");
+    }
+
+    #[test]
+    fn builds_primary_with_chain_from_multiple_certs() {
+        let certs = parse_pem_multi(CHAIN_PEM, "chain.pem").unwrap();
+        let primary = build_primary_with_chain(certs).expect("primary cert should exist");
+        assert_cert_populated(&primary, "chain.pem");
+        assert_eq!(primary.chain.len(), 1);
+        assert_cert_populated(&primary.chain[0], "chain.pem");
     }
 
     #[test]

@@ -31,7 +31,6 @@ pub struct CertTab {
     pub is_importing: bool,
     pub copy_status: Option<String>,
     pub error_detail_expanded: bool,
-    pub drag_hover: bool,
 }
 impl CertTab {
     pub fn new() -> Self {
@@ -42,7 +41,6 @@ impl CertTab {
             is_importing: false,
             copy_status: None,
             error_detail_expanded: false,
-            drag_hover: false,
         }
     }
     pub fn menu_items(&self) -> Vec<SharedString> {
@@ -100,7 +98,7 @@ impl CertTab {
             div()
         };
         div()
-            .flex_1().p_4().gap_4().flex().flex_col().child(div().text_size(FONT_TITLE).text_color(COLOR_TEXT_PRIMARY).child("导入证书文件"))
+            .w_full().p_4().gap_4().flex().flex_col().child(div().text_size(FONT_TITLE).text_color(COLOR_TEXT_PRIMARY).child("导入证书文件"))
             .child(div().flex().flex_col().gap_2().items_center().justify_center().flex_1()
                 .child(div().text_size(FONT_BODY).text_color(COLOR_TEXT_SECONDARY).child("点击「选择证书文件」按钮导入文件"))
                 .child(div().text_size(FONT_BODY).text_color(COLOR_TEXT_MUTED).child("支持格式: .pem, .der, .crt, .cer, .p12, .pfx"))
@@ -116,7 +114,7 @@ impl CertTab {
                     None => "未知".to_string(),
                 };
                 div()
-                    .flex_1().p_4().gap_4().flex().flex_col().child(div().text_size(FONT_TITLE).text_color(COLOR_TEXT_PRIMARY).child("基本信息"))
+                    .w_full().p_4().gap_4().flex().flex_col().child(div().text_size(FONT_TITLE).text_color(COLOR_TEXT_PRIMARY).child("基本信息"))
                     .child(div().flex().flex_col().gap_1()
                         .child(render_info_row("文件路径", &cert.raw_path))
                         .child(render_info_row("版本", &cert.version))
@@ -133,7 +131,7 @@ impl CertTab {
                     )
             }
             None => div()
-                .flex_1().p_4().gap_4().flex().flex_col().child(div().text_size(FONT_TITLE).text_color(COLOR_TEXT_PRIMARY).child("基本信息"))
+                .w_full().p_4().gap_4().flex().flex_col().child(div().text_size(FONT_TITLE).text_color(COLOR_TEXT_PRIMARY).child("基本信息"))
                 .child(div().text_size(FONT_BODY).text_color(COLOR_TEXT_SECONDARY).child("请先导入证书文件以查看详细信息。")),
         }
     }
@@ -141,7 +139,7 @@ impl CertTab {
         match &self.loaded_cert {
             Some(cert) => {
                 let mut container = div()
-                    .flex_1().p_4().gap_4().flex().flex_col().child(div().text_size(FONT_TITLE).text_color(COLOR_TEXT_PRIMARY).child("证书链信息"));
+                    .w_full().p_4().gap_4().flex().flex_col().child(div().text_size(FONT_TITLE).text_color(COLOR_TEXT_PRIMARY).child("证书链信息"));
                 let all_certs: Vec<&ParsedCert> = std::iter::once(cert)
                     .chain(cert.chain.iter())
                     .collect();
@@ -168,7 +166,7 @@ impl CertTab {
                 container
             }
             None => div()
-                .flex_1().p_4().gap_4().flex().flex_col().child(div().text_size(FONT_TITLE).text_color(COLOR_TEXT_PRIMARY).child("证书链信息"))
+                .w_full().p_4().gap_4().flex().flex_col().child(div().text_size(FONT_TITLE).text_color(COLOR_TEXT_PRIMARY).child("证书链信息"))
                 .child(div().text_size(FONT_BODY).text_color(COLOR_TEXT_SECONDARY).child("请先导入证书文件。")),
         }
     }
@@ -176,7 +174,7 @@ impl CertTab {
         match &self.loaded_cert {
             Some(cert) => {
                 let mut container = div()
-                    .flex_1().p_4().gap_4().flex().flex_col().child(div().text_size(FONT_TITLE).text_color(COLOR_TEXT_PRIMARY).child("扩展项信息"));
+                    .w_full().p_4().gap_4().flex().flex_col().child(div().text_size(FONT_TITLE).text_color(COLOR_TEXT_PRIMARY).child("扩展项信息"));
                 if cert.extensions.is_empty() {
                     container = container.child(div()
                         .text_size(FONT_BODY).text_color(COLOR_TEXT_SECONDARY)
@@ -200,7 +198,7 @@ impl CertTab {
                 container
             }
             None => div()
-                .flex_1().p_4().gap_4().flex().flex_col().child(div().text_size(FONT_TITLE).text_color(COLOR_TEXT_PRIMARY).child("扩展项信息"))
+                .w_full().p_4().gap_4().flex().flex_col().child(div().text_size(FONT_TITLE).text_color(COLOR_TEXT_PRIMARY).child("扩展项信息"))
                 .child(div().text_size(FONT_BODY).text_color(COLOR_TEXT_SECONDARY).child("请先导入证书文件。")),
         }
     }
