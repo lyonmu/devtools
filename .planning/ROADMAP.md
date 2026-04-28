@@ -112,7 +112,7 @@ Plans:
 - [x] 04-02-PLAN.md — Workbench layout, typography, status banners, compact action/reset controls
 
 **Wave 3** *(blocked on Wave 2 completion)*
-- [ ] 04-03-PLAN.md — Right-content scrolling, monospaced output blocks, certificate and algorithm copy support
+- [x] 04-03-PLAN.md — Right-content scrolling, monospaced output blocks, certificate and algorithm copy support
 
 Cross-cutting constraints:
 - Keep current dark theme and Chinese UI style while normalizing contrast, spacing, typography, and status hierarchy.
