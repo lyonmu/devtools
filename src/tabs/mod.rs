@@ -1,4 +1,4 @@
-use gpui::{div, px, rgb, AppContext, Entity, ParentElement, SharedString, Styled};
+use gpui::{div, px, rgb, AppContext, Entity, ElementId, InteractiveElement, MouseButton, ParentElement, SharedString, StatefulInteractiveElement, Styled};
 
 use crate::cert::ParsedCert;
 
@@ -13,6 +13,40 @@ fn info_row(label: &str, value: &str) -> gpui::Div {
         .child(div().flex_1().text_size(FONT_BODY).text_color(rgb(0xddddcc)).child(value.to_string()))
 }
 
+fn mono_output_block(text: &str) -> gpui::Stateful<gpui::Div> {
+    div()
+        .w_full()
+        .px_3()
+        .py_2()
+        .bg(rgb(0x1a1a2a))
+        .rounded_md()
+        .id(ElementId::Name(SharedString::from(format!("cert-mono-output-{}", text.len()))))
+        .overflow_x_scroll()
+        .font_family("monospace")
+        .text_size(FONT_SMALL)
+        .text_color(rgb(0xaabb99))
+        .child(text.to_string())
+}
+
+fn copyable_info_row(label: &str, value: &str, cx: &mut gpui::Context<crate::app::DevToolsApp>) -> gpui::Div {
+    let text = value.to_string();
+    div().flex().flex_row().gap_4().py_1().border_b_1().border_color(rgb(0x3a3a4a))
+        .child(div().w(px(120.0)).text_size(FONT_BODY).text_color(rgb(0x888899)).child(label.to_string()))
+        .child(div().flex_1().text_size(FONT_BODY).text_color(rgb(0xddddcc)).child(value.to_string()))
+        .child(div()
+            .id(ElementId::Name(SharedString::from(format!("cert-copy-{label}"))))
+            .px_2().py_1().bg(rgb(0x3b3b5c)).rounded_md().cursor_pointer()
+            .text_size(FONT_SMALL).text_color(rgb(0xffffff))
+            .on_mouse_down(MouseButton::Left, cx.listener(move |this, _, _, cx| {
+                if let crate::app::DevToolsApp::Cert(tab) = this {
+                    (**cx).write_to_clipboard(gpui::ClipboardItem::new_string(text.clone()));
+                    tab.copy_status = Some("已复制".to_string());
+                    cx.notify();
+                }
+            }))
+            .child("复制"))
+}
+
 // ============================================================
 // Certificate Tab
 // ============================================================
@@ -22,6 +56,7 @@ pub struct CertTab {
     pub loaded_cert: Option<ParsedCert>,
     pub import_error: Option<String>,
     pub is_importing: bool,
+    pub copy_status: Option<String>,
 }
 
 impl CertTab {
@@ -31,6 +66,7 @@ impl CertTab {
             loaded_cert: None,
             import_error: None,
             is_importing: false,
+            copy_status: None,
         }
     }
 
@@ -43,17 +79,17 @@ impl CertTab {
         ]
     }
 
-    pub fn render_content(&self) -> gpui::Div {
+    pub fn render_content(&self, cx: &mut gpui::Context<crate::app::DevToolsApp>) -> gpui::Div {
         match self.active_menu {
-            0 => self.render_import(),
-            1 => self.render_basic_info(),
-            2 => self.render_chain_info(),
-            3 => self.render_extensions(),
+            0 => self.render_import(cx),
+            1 => self.render_basic_info(cx),
+            2 => self.render_chain_info(cx),
+            3 => self.render_extensions(cx),
             _ => div().child("未知"),
         }
     }
 
-    fn render_import(&self) -> gpui::Div {
+    fn render_import(&self, cx: &mut gpui::Context<crate::app::DevToolsApp>) -> gpui::Div {
         let status = if self.is_importing {
             div().text_size(FONT_BODY).text_color(rgb(0x8888aa)).child("正在解析证书...")
         } else if let Some(err) = &self.import_error {
@@ -79,13 +115,13 @@ impl CertTab {
                 .mt_4().p_4().bg(rgb(0x1e1e2e)).rounded_md()
                 .child(div().text_size(FONT_BODY).text_color(rgb(0xffffff)).child("证书信息预览").mb_2())
                 .child(div().flex().flex_col().gap_1()
-                    .child(info_row("主题", &cert.subject))
-                    .child(info_row("颁发者", &cert.issuer))
-                    .child(info_row("序列号", &cert.serial_number))
-                    .child(info_row("有效期起始", &cert.not_before))
-                    .child(info_row("有效期截止", &cert.not_after))
-                    .child(info_row("签名算法", &cert.signature_algorithm))
-                    .child(info_row("公钥算法", &cert.public_key_info.algorithm_name))
+                    .child(copyable_info_row("主题", &cert.subject, cx))
+                    .child(copyable_info_row("颁发者", &cert.issuer, cx))
+                    .child(copyable_info_row("序列号", &cert.serial_number, cx))
+                    .child(copyable_info_row("有效期起始", &cert.not_before, cx))
+                    .child(copyable_info_row("有效期截止", &cert.not_after, cx))
+                    .child(copyable_info_row("签名算法", &cert.signature_algorithm, cx))
+                    .child(copyable_info_row("公钥算法", &cert.public_key_info.algorithm_name, cx))
                     .child(info_row("密钥长度", &key_size))
                 )
         } else {
@@ -103,7 +139,7 @@ impl CertTab {
             .child(cert_preview)
     }
 
-    fn render_basic_info(&self) -> gpui::Div {
+    fn render_basic_info(&self, cx: &mut gpui::Context<crate::app::DevToolsApp>) -> gpui::Div {
         match &self.loaded_cert {
             Some(cert) => {
                 let key_size = match cert.public_key_info.key_size_bits {
@@ -116,14 +152,14 @@ impl CertTab {
                     .child(div().flex().flex_col().gap_1()
                         .child(info_row("文件路径", &cert.raw_path))
                         .child(info_row("版本", &cert.version))
-                        .child(info_row("主题", &cert.subject))
-                        .child(info_row("颁发者", &cert.issuer))
-                        .child(info_row("序列号", &cert.serial_number))
-                        .child(info_row("有效期起始", &cert.not_before))
-                        .child(info_row("有效期截止", &cert.not_after))
-                        .child(info_row("签名算法", &cert.signature_algorithm))
-                        .child(info_row("公钥算法", &cert.public_key_info.algorithm_name))
-                        .child(info_row("公钥 OID", &cert.public_key_info.algorithm_oid))
+                        .child(copyable_info_row("主题", &cert.subject, cx))
+                        .child(copyable_info_row("颁发者", &cert.issuer, cx))
+                        .child(copyable_info_row("序列号", &cert.serial_number, cx))
+                        .child(copyable_info_row("有效期起始", &cert.not_before, cx))
+                        .child(copyable_info_row("有效期截止", &cert.not_after, cx))
+                        .child(copyable_info_row("签名算法", &cert.signature_algorithm, cx))
+                        .child(copyable_info_row("公钥算法", &cert.public_key_info.algorithm_name, cx))
+                        .child(copyable_info_row("公钥 OID", &cert.public_key_info.algorithm_oid, cx))
                         .child(info_row("密钥长度", &key_size))
                         .child(info_row("密钥类别", &format!("{}", cert.public_key_info.category)))
                     )
@@ -135,7 +171,7 @@ impl CertTab {
         }
     }
 
-    fn render_chain_info(&self) -> gpui::Div {
+    fn render_chain_info(&self, cx: &mut gpui::Context<crate::app::DevToolsApp>) -> gpui::Div {
         match &self.loaded_cert {
             Some(cert) => {
                 let mut container = div()
@@ -161,10 +197,10 @@ impl CertTab {
                     container = container.child(div()
                         .flex().flex_col().gap_1().mt_2()
                         .child(div().text_size(FONT_BODY).text_color(rgb(0x4ade80)).child(label))
-                        .child(info_row("主题", &c.subject))
-                        .child(info_row("颁发者", &c.issuer))
-                        .child(info_row("有效期起始", &c.not_before))
-                        .child(info_row("有效期截止", &c.not_after))
+                        .child(copyable_info_row("主题", &c.subject, cx))
+                        .child(copyable_info_row("颁发者", &c.issuer, cx))
+                        .child(copyable_info_row("有效期起始", &c.not_before, cx))
+                        .child(copyable_info_row("有效期截止", &c.not_after, cx))
                     );
                 }
 
@@ -177,7 +213,7 @@ impl CertTab {
         }
     }
 
-    fn render_extensions(&self) -> gpui::Div {
+    fn render_extensions(&self, cx: &mut gpui::Context<crate::app::DevToolsApp>) -> gpui::Div {
         match &self.loaded_cert {
             Some(cert) => {
                 let mut container = div()
@@ -198,11 +234,8 @@ impl CertTab {
                                 .child(div().text_size(FONT_SMALL).text_color(rgb(0x666677)).child(format!("OID: {}", ext.oid)))
                                 .child(div().text_size(FONT_SMALL).text_color(if ext.critical { rgb(0xf87171) } else { rgb(0x888899) }).child(format!("关键: {}", critical_label)))
                             )
-                            .child(div().text_size(FONT_BODY).text_color(rgb(0xddddcc)).child(
-                                div().flex().flex_col().gap_1().children(
-                                    ext.value_display.lines().map(|line| div().text_size(FONT_BODY).text_color(rgb(0xaabb99)).child(line.to_string()))
-                                )
-                            ))
+                            .child(copyable_info_row("扩展值", &ext.value_display, cx))
+                            .child(mono_output_block(&ext.value_display))
                             .child(div().h(px(1.0)).bg(rgb(0x3a3a4a)))
                         );
                     }
@@ -249,6 +282,7 @@ pub struct AlgoTab {
     pub hash: HashToolState,
     pub pq_kem: PqKemToolState,
     pub pq_signature: PqSignatureToolState,
+    pub copy_status: Option<String>,
     pub sym_input: Entity<TextInputState>,
     pub sym_key: Entity<TextInputState>,
     pub sym_iv: Entity<TextInputState>,
@@ -266,6 +300,7 @@ impl AlgoTab {
             hash: HashToolState::default(),
             pq_kem: PqKemToolState::default(),
             pq_signature: PqSignatureToolState::default(),
+            copy_status: None,
             sym_input: cx.new(|cx| TextInputState::new("输入十六进制数据", InputKind::SingleLine, cx)),
             sym_key: cx.new(|cx| TextInputState::new("输入密钥", InputKind::SingleLine, cx)),
             sym_iv: cx.new(|cx| TextInputState::new("输入 16 字节 IV", InputKind::SingleLine, cx)),

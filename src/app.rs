@@ -141,6 +141,21 @@ impl DevToolsApp {
             .child(message.into())
     }
 
+    fn mono_output_block(text: &str) -> gpui::Stateful<gpui::Div> {
+        div()
+            .w_full()
+            .px_3()
+            .py_2()
+            .bg(rgb(0x1a1a2a))
+            .rounded_md()
+            .id(ElementId::Name(SharedString::from(format!("mono-output-{}", text.len()))))
+            .overflow_x_scroll()
+            .font_family("monospace")
+            .text_size(FONT_SMALL)
+            .text_color(rgb(0xddddcc))
+            .child(text.to_string())
+    }
+
     fn result_card(title: &str, body: gpui::AnyElement) -> gpui::Div {
         div()
             .w_full()
@@ -154,6 +169,15 @@ impl DevToolsApp {
             .gap_2()
             .child(div().text_size(FONT_BODY).text_color(rgb(0xffffff)).child(title.to_string()))
             .child(body)
+    }
+
+    fn copy_to_clipboard_with_status(&mut self, text: String, cx: &mut Context<Self>) {
+        (**cx).write_to_clipboard(ClipboardItem::new_string(text));
+        match self {
+            Self::Cert(tab) => tab.copy_status = Some("已复制".to_string()),
+            Self::Algo(tab) => tab.copy_status = Some("已复制".to_string()),
+        }
+        cx.notify();
     }
 
     fn sync_algo_inputs_to_tool_state(&mut self, cx: &mut Context<Self>) {
@@ -189,9 +213,11 @@ impl DevToolsApp {
     fn render_tab_content(&mut self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
         match self {
             Self::Cert(t) => {
-                let content = t.render_content();
+                let content = t.render_content(cx);
                 if t.active_menu == 0 {
-                    let cert_status = if t.is_importing {
+                    let cert_status = if let Some(status) = &t.copy_status {
+                        Self::render_status_banner(UiStatusKind::Success, status.clone())
+                    } else if t.is_importing {
                         Self::render_status_banner(UiStatusKind::Info, "正在解析证书...")
                     } else if let Some(err) = &t.import_error {
                         Self::render_status_banner(UiStatusKind::Error, format!("导入失败: {err}"))
@@ -222,6 +248,14 @@ impl DevToolsApp {
                         .child(content)
                         .into_any_element();
                 }
+                if let Some(status) = &t.copy_status {
+                    return div()
+                        .id(ElementId::Name(SharedString::from("cert-tab-content")))
+                        .flex_1().flex().flex_col().gap_2().p_4().overflow_y_scroll()
+                        .child(Self::render_status_banner(UiStatusKind::Success, status.clone()))
+                        .child(content)
+                        .into_any_element();
+                }
                 content.into_any_element()
             }
             Self::Algo(t) => {
@@ -249,8 +283,8 @@ impl DevToolsApp {
     }
 
     fn render_symmetric_tool(&mut self, window: &mut Window, cx: &mut Context<Self>) -> gpui::Div {
-        let (sym_input, sym_key, sym_iv) = match self {
-            Self::Algo(t) => (t.sym_input.clone(), t.sym_key.clone(), t.sym_iv.clone()),
+        let (sym_input, sym_key, sym_iv, copy_status) = match self {
+            Self::Algo(t) => (t.sym_input.clone(), t.sym_key.clone(), t.sym_iv.clone(), t.copy_status.clone()),
             _ => unreachable!(),
         };
         let s = &self.algo_mut().symmetric;
@@ -301,7 +335,9 @@ impl DevToolsApp {
             container = container.child(render_text_input(sym_iv, "sym-iv", window, cx));
         }
 
-        let status = if let Some(err) = &s.error {
+        let status = if let Some(status) = copy_status {
+            Self::render_status_banner(UiStatusKind::Success, status)
+        } else if let Some(err) = &s.error {
             Self::render_status_banner(UiStatusKind::Error, format!("错误: {err}"))
         } else if !s.output_hex.is_empty() {
             Self::render_status_banner(UiStatusKind::Success, "执行完成")
@@ -345,7 +381,7 @@ impl DevToolsApp {
         if !s.output_hex.is_empty() {
             container = container.child(Self::result_card(
                 "输出结果",
-                div().text_size(FONT_BODY).text_color(rgb(0x4ade80)).child(s.output_hex.clone()).into_any_element(),
+                Self::mono_output_block(&s.output_hex).into_any_element(),
             ));
         }
 
@@ -357,8 +393,8 @@ impl DevToolsApp {
     }
 
     fn render_asymmetric_tool(&mut self, window: &mut Window, cx: &mut Context<Self>) -> gpui::Div {
-        let asym_input = match self {
-            Self::Algo(t) => t.asym_input.clone(),
+        let (asym_input, copy_status) = match self {
+            Self::Algo(t) => (t.asym_input.clone(), t.copy_status.clone()),
             _ => unreachable!(),
         };
         let a = &self.algo_mut().asymmetric;
@@ -367,7 +403,9 @@ impl DevToolsApp {
             .flex_1().p_4().gap_4().flex().flex_col()
             .child(div().text_size(FONT_TITLE).text_color(rgb(0xffffff)).child("非对称算法"));
 
-        let status = if let Some(err) = &a.error {
+        let status = if let Some(status) = copy_status {
+            Self::render_status_banner(UiStatusKind::Success, status)
+        } else if let Some(err) = &a.error {
             Self::render_status_banner(UiStatusKind::Error, format!("错误: {err}"))
         } else if !a.output_text.is_empty() || !a.rsa_pub_key_pem.is_empty() || !a.signature_hex.is_empty() {
             Self::render_status_banner(UiStatusKind::Success, "执行完成")
@@ -514,7 +552,7 @@ impl DevToolsApp {
         if !a.output_text.is_empty() {
             container = container.child(Self::result_card(
                 "结果",
-                div().text_size(FONT_BODY).text_color(rgb(0x4ade80)).child(a.output_text.clone()).into_any_element(),
+                Self::mono_output_block(&a.output_text).into_any_element(),
             ));
         }
 
@@ -547,8 +585,8 @@ impl DevToolsApp {
     }
 
     fn render_hash_tool(&mut self, window: &mut Window, cx: &mut Context<Self>) -> gpui::Div {
-        let hash_input = match self {
-            Self::Algo(t) => t.hash_input.clone(),
+        let (hash_input, copy_status) = match self {
+            Self::Algo(t) => (t.hash_input.clone(), t.copy_status.clone()),
             _ => unreachable!(),
         };
         let h = &self.algo_mut().hash;
@@ -557,7 +595,9 @@ impl DevToolsApp {
             .flex_1().p_4().gap_4().flex().flex_col()
             .child(div().text_size(FONT_TITLE).text_color(rgb(0xffffff)).child("哈希算法"));
 
-        let status = if let Some(err) = &h.error {
+        let status = if let Some(status) = copy_status {
+            Self::render_status_banner(UiStatusKind::Success, status)
+        } else if let Some(err) = &h.error {
             Self::render_status_banner(UiStatusKind::Error, format!("错误: {err}"))
         } else if !h.output_hex.is_empty() {
             Self::render_status_banner(UiStatusKind::Success, "执行完成")
@@ -636,7 +676,7 @@ impl DevToolsApp {
         if !h.output_hex.is_empty() {
             container = container.child(Self::result_card(
                 "哈希结果",
-                div().text_size(FONT_BODY).text_color(rgb(0x4ade80)).child(h.output_hex.clone()).into_any_element(),
+                Self::mono_output_block(&h.output_hex).into_any_element(),
             ));
         }
 
@@ -648,13 +688,19 @@ impl DevToolsApp {
     }
 
     fn render_pq_kem_tool(&mut self, cx: &mut Context<Self>) -> gpui::Div {
+        let copy_status = match self {
+            Self::Algo(t) => t.copy_status.clone(),
+            _ => unreachable!(),
+        };
         let k = &self.algo_mut().pq_kem;
 
         let mut container = div()
             .flex_1().p_4().gap_4().flex().flex_col()
             .child(div().text_size(FONT_TITLE).text_color(rgb(0xffffff)).child("密码封装算法 (KEM)"));
 
-        let status = if let Some(err) = &k.error {
+        let status = if let Some(status) = copy_status {
+            Self::render_status_banner(UiStatusKind::Success, status)
+        } else if let Some(err) = &k.error {
             Self::render_status_banner(UiStatusKind::Error, format!("错误: {err}"))
         } else if !k.output_text.is_empty() || !k.public_key_hex.is_empty() || !k.ciphertext_hex.is_empty() {
             Self::render_status_banner(UiStatusKind::Success, "执行完成")
@@ -756,10 +802,8 @@ impl DevToolsApp {
         }
 
         if !k.decapsulated_secret.is_empty() {
-            let color = if k.encapsulated_secret == k.decapsulated_secret { rgb(0x4ade80) } else { rgb(0xf87171) };
             container = container.child(div().text_size(FONT_BODY).text_color(rgb(0x888899)).child("解封装共享密钥:").mt_2());
-            container = container.child(div().px_3().py_2().bg(rgb(0x1e1e30)).rounded_md()
-                .child(div().text_size(FONT_SMALL).text_color(color).child(k.decapsulated_secret.clone())));
+            container = container.child(Self::copyable_display(&k.decapsulated_secret, cx));
         }
 
         if let Some(err) = &k.error {
@@ -770,8 +814,8 @@ impl DevToolsApp {
     }
 
     fn render_pq_signature_tool(&mut self, window: &mut Window, cx: &mut Context<Self>) -> gpui::Div {
-        let pq_signature_message = match self {
-            Self::Algo(t) => t.pq_signature_message.clone(),
+        let (pq_signature_message, copy_status) = match self {
+            Self::Algo(t) => (t.pq_signature_message.clone(), t.copy_status.clone()),
             _ => unreachable!(),
         };
         let s = &self.algo_mut().pq_signature;
@@ -780,7 +824,9 @@ impl DevToolsApp {
             .flex_1().p_4().gap_4().flex().flex_col()
             .child(div().text_size(FONT_TITLE).text_color(rgb(0xffffff)).child("数字签名算法"));
 
-        let status = if let Some(err) = &s.error {
+        let status = if let Some(status) = copy_status {
+            Self::render_status_banner(UiStatusKind::Success, status)
+        } else if let Some(err) = &s.error {
             Self::render_status_banner(UiStatusKind::Error, format!("错误: {err}"))
         } else if !s.output_text.is_empty() || !s.public_key_hex.is_empty() || !s.signature_hex.is_empty() {
             Self::render_status_banner(UiStatusKind::Success, "执行完成")
@@ -896,16 +942,14 @@ impl DevToolsApp {
     fn copyable_display(value: &str, cx: &mut Context<Self>) -> gpui::Div {
         let text = value.to_string();
         div().flex().flex_row().gap_2().items_center()
-            .child(div().flex_1().px_3().py_2().bg(rgb(0x1e1e30)).rounded_md()
-                .child(div().text_size(FONT_SMALL).text_color(rgb(0xddddcc)).child(value.to_string())))
+            .child(Self::mono_output_block(value).flex_1())
             .child(
                 div()
                     .id(ElementId::Name(SharedString::from(format!("copy-btn-{}", text.len()))))
                     .px_2().py_1().bg(rgb(0x3b3b5c))
                     .text_color(rgb(0xffffff)).text_size(FONT_SMALL).rounded_md().cursor_pointer()
                     .on_mouse_down(MouseButton::Left, cx.listener(move |_this, _, _, cx| {
-                        (**cx).write_to_clipboard(ClipboardItem::new_string(text.clone()));
-                        cx.notify();
+                        _this.copy_to_clipboard_with_status(text.clone(), cx);
                     }))
                     .child("复制"),
             )
