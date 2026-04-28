@@ -6,6 +6,7 @@ use crate::components::ui_helpers::{
     COLOR_TEXT_BODY, COLOR_TEXT_MUTED, COLOR_TEXT_PRIMARY,
     COLOR_TEXT_SECONDARY, FONT_BODY, FONT_SMALL, FONT_TITLE, UiStatusKind,
 };
+use crate::cert::ParsedCert;
 use crate::tabs::{AlgoInputField, AlgoTab, CertTab};
 use crate::algo::{
     SymmetricAlgo, AsymmetricOp, RsaKeySize, HashAlgo, PqKemAlgo, PqSignatureAlgo,
@@ -16,6 +17,52 @@ pub enum DevToolsApp {
     Algo(AlgoTab),
 }
 impl DevToolsApp {
+    fn split_leaf_and_chain(mut certs: Vec<ParsedCert>) -> Option<(ParsedCert, Vec<ParsedCert>)> {
+        if certs.is_empty() {
+            return None;
+        }
+        if certs.len() == 1 {
+            return certs.pop().map(|leaf| (leaf, Vec::new()));
+        }
+
+        let leaf_index = certs
+            .iter()
+            .enumerate()
+            .find_map(|(candidate_index, candidate)| {
+                let issues_other = certs
+                    .iter()
+                    .enumerate()
+                    .any(|(other_index, other)| {
+                        other_index != candidate_index && other.issuer == candidate.subject
+                    });
+                if issues_other {
+                    None
+                } else {
+                    Some(candidate_index)
+                }
+            })
+            .unwrap_or(0);
+
+        let leaf = certs.remove(leaf_index);
+
+        let mut remaining = certs;
+        let mut ordered_chain = Vec::new();
+        let mut current_issuer = leaf.issuer.clone();
+
+        while let Some(next_index) = remaining.iter().position(|cert| cert.subject == current_issuer) {
+            let next = remaining.remove(next_index);
+            current_issuer = next.issuer.clone();
+            let is_self_signed = next.subject == next.issuer;
+            ordered_chain.push(next);
+            if is_self_signed {
+                break;
+            }
+        }
+
+        ordered_chain.extend(remaining);
+        Some((leaf, ordered_chain))
+    }
+
     pub fn new(_window: &mut Window, _cx: &mut Context<Self>) -> Self {
         Self::Cert(CertTab::new())
     }
@@ -85,9 +132,7 @@ impl DevToolsApp {
                         match result {
                             Ok(certs) => {
                                 t.is_importing = false;
-                                let mut cert_iter = certs.into_iter();
-                                if let Some(leaf_cert) = cert_iter.next() {
-                                    let chain: Vec<crate::cert::ParsedCert> = cert_iter.collect();
+                                if let Some((leaf_cert, chain)) = Self::split_leaf_and_chain(certs) {
                                     t.loaded_cert = Some(leaf_cert.with_chain(chain));
                                     t.import_error = None;
                                 }
@@ -900,5 +945,58 @@ impl gpui::Render for DevToolsApp {
                         self.render_tab_content(window, cx),
                     ),
             )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::DevToolsApp;
+    use crate::cert::{KeyCategory, ParsedCert, PublicKeyInfo};
+
+    fn cert(subject: &str, issuer: &str) -> ParsedCert {
+        ParsedCert {
+            subject: subject.to_string(),
+            issuer: issuer.to_string(),
+            serial_number: "00".to_string(),
+            not_before: String::new(),
+            not_after: String::new(),
+            raw_path: "test.pem".to_string(),
+            version: "v3".to_string(),
+            signature_algorithm: "sha256WithRSAEncryption".to_string(),
+            public_key_info: PublicKeyInfo {
+                algorithm_name: "RSA".to_string(),
+                algorithm_oid: "1.2.840.113549.1.1.1".to_string(),
+                key_size_bits: Some(2048),
+                key_pem: "-----BEGIN PUBLIC KEY-----\n-----END PUBLIC KEY-----".to_string(),
+                category: KeyCategory::Classic,
+            },
+            extensions: Vec::new(),
+            chain: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn split_leaf_and_chain_picks_leaf_when_input_is_root_first() {
+        let root = cert("CN=Root", "CN=Root");
+        let intermediate = cert("CN=Intermediate", "CN=Root");
+        let leaf = cert("CN=Leaf", "CN=Intermediate");
+        let certs = vec![root, intermediate, leaf];
+
+        let (picked_leaf, chain) = DevToolsApp::split_leaf_and_chain(certs).unwrap();
+
+        assert_eq!(picked_leaf.subject, "CN=Leaf");
+        assert_eq!(chain.len(), 2);
+        assert_eq!(chain[0].subject, "CN=Intermediate");
+        assert_eq!(chain[1].subject, "CN=Root");
+    }
+
+    #[test]
+    fn split_leaf_and_chain_keeps_single_certificate_as_leaf() {
+        let leaf = cert("CN=Leaf", "CN=Root");
+
+        let (picked_leaf, chain) = DevToolsApp::split_leaf_and_chain(vec![leaf]).unwrap();
+
+        assert_eq!(picked_leaf.subject, "CN=Leaf");
+        assert!(chain.is_empty());
     }
 }
