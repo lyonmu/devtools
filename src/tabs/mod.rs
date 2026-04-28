@@ -15,11 +15,9 @@ fn copyable_render_info_row(label: &str, value: &str, cx: &mut gpui::Context<cra
             .px_2().py_1().bg(COLOR_BG_ACTIVE).rounded_md().cursor_pointer()
             .text_size(FONT_SMALL).text_color(COLOR_TEXT_PRIMARY)
             .on_mouse_down(MouseButton::Left, cx.listener(move |this, _, _, cx| {
-                if let crate::app::DevToolsApp::Cert(tab) = this {
-                    (**cx).write_to_clipboard(gpui::ClipboardItem::new_string(text.clone()));
-                    tab.copy_status = Some("已复制".to_string());
-                    cx.notify();
-                }
+                (**cx).write_to_clipboard(gpui::ClipboardItem::new_string(text.clone()));
+                this.cert_tab_mut().copy_status = Some("已复制".to_string());
+                cx.notify();
             }))
             .child("复制"))
 }
