@@ -237,6 +237,142 @@ mod tests {
         assert!(state.error.is_none(), "verify error: {:?}", state.error);
         assert_eq!(state.verify_result, Some(true));
     }
+
+    #[test]
+    fn ml_dsa_variant_keygen_sign_verify_succeeds_for_all_parameter_sets() {
+        for algo in [PqSignatureAlgo::MlDsa44, PqSignatureAlgo::MlDsa65, PqSignatureAlgo::MlDsa87] {
+            let mut state = PqSignatureToolState::default();
+            state.select_algo(algo);
+            state.keygen();
+            assert!(state.error.is_none(), "{:?} keygen error: {:?}", algo, state.error);
+            assert!(!state.public_key_hex.is_empty(), "{:?} public key empty", algo);
+            assert!(!state.secret_key_seed_hex.is_empty(), "{:?} seed empty", algo);
+
+            state.input_text = "Test message".to_string();
+            state.sign();
+            assert!(state.error.is_none(), "{:?} sign error: {:?}", algo, state.error);
+            assert!(!state.signature_hex.is_empty(), "{:?} signature empty", algo);
+
+            state.verify();
+            assert!(state.error.is_none(), "{:?} verify error: {:?}", algo, state.error);
+            assert_eq!(state.verify_result, Some(true), "{:?} verify failed", algo);
+        }
+    }
+
+    #[test]
+    fn sign_without_message_reports_error() {
+        let mut state = PqSignatureToolState::default();
+        state.keygen();
+        state.sign();
+        assert!(state.error.is_some());
+        assert!(state.error.unwrap().contains("请输入要签名的消息"));
+    }
+
+    #[test]
+    fn sign_without_key_reports_error() {
+        let mut state = PqSignatureToolState::default();
+        state.input_text = "Test".to_string();
+        state.sign();
+        assert!(state.error.is_some());
+        assert!(state.error.unwrap().contains("请先生成密钥对"));
+    }
+
+    #[test]
+    fn verify_without_public_key_reports_error() {
+        let mut state = PqSignatureToolState::default();
+        state.input_text = "Test".to_string();
+        state.signature_hex = "aabb".to_string();
+        state.verify();
+        assert!(state.error.is_some());
+        assert!(state.error.unwrap().contains("请先生成密钥对"));
+    }
+
+    #[test]
+    fn verify_without_signature_reports_error() {
+        let mut state = PqSignatureToolState::default();
+        state.keygen();
+        state.input_text = "Test".to_string();
+        state.verify();
+        assert!(state.error.is_some());
+        assert!(state.error.unwrap().contains("请先进行签名"));
+    }
+
+    #[test]
+    fn verify_without_message_reports_error() {
+        let mut state = PqSignatureToolState::default();
+        state.keygen();
+        state.signature_hex = "aabb".to_string();
+        state.verify();
+        assert!(state.error.is_some());
+        assert!(state.error.unwrap().contains("请输入要验证的消息"));
+    }
+
+    #[test]
+    fn tampered_message_verification_returns_false() {
+        let mut state = PqSignatureToolState::default();
+        state.keygen();
+        state.input_text = "Original message".to_string();
+        state.sign();
+        assert!(state.error.is_none());
+
+        state.input_text = "Tampered message".to_string();
+        state.verify();
+        assert!(state.error.is_none());
+        assert_eq!(state.verify_result, Some(false));
+    }
+
+    #[test]
+    fn invalid_public_key_hex_returns_error() {
+        let mut state = PqSignatureToolState::default();
+        state.keygen();
+        state.public_key_hex = "not-valid-hex".to_string();
+        state.input_text = "Test".to_string();
+        state.signature_hex = "aabb".to_string();
+        state.verify();
+        assert!(state.error.is_some());
+    }
+
+    #[test]
+    fn invalid_signature_hex_returns_error() {
+        let mut state = PqSignatureToolState::default();
+        state.keygen();
+        state.input_text = "Test".to_string();
+        state.sign();
+        assert!(state.error.is_none());
+        state.signature_hex = "not-valid-hex".to_string();
+        state.verify();
+        assert!(state.error.is_some());
+    }
+
+    #[test]
+    fn invalid_seed_length_returns_error() {
+        let mut state = PqSignatureToolState::default();
+        state.secret_key_seed_hex = "aabb".to_string(); // Too short, needs 32 bytes
+        state.input_text = "Test".to_string();
+        state.sign();
+        assert!(state.error.is_some());
+    }
+
+    #[test]
+    fn select_algo_and_clear_wipe_outputs_and_errors() {
+        let mut state = PqSignatureToolState::default();
+        state.keygen();
+        assert!(!state.public_key_hex.is_empty());
+
+        state.select_algo(PqSignatureAlgo::MlDsa65);
+        assert!(state.public_key_hex.is_empty());
+        assert!(state.secret_key_seed_hex.is_empty());
+        assert!(state.error.is_none());
+
+        state.keygen();
+        state.clear();
+        assert!(state.public_key_hex.is_empty());
+        assert!(state.secret_key_seed_hex.is_empty());
+        assert!(state.signature_hex.is_empty());
+        assert!(state.verify_result.is_none());
+        assert!(state.output_text.is_empty());
+        assert!(state.error.is_none());
+    }
 }
 
 use super::registry::AlgorithmCategory;
