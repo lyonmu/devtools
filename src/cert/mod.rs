@@ -173,13 +173,25 @@ pub fn parse_pkcs12(bytes: &[u8], password: &str, path: &str) -> Result<Vec<Pars
 
     let certs: Vec<ParsedCert> = keystore
         .entries()
-        .filter_map(|(_, entry)| match entry {
+        .flat_map(|(_, entry)| match entry {
             p12_keystore::KeyStoreEntry::Certificate(cert) => {
                 let der_bytes = cert.as_der();
-                let (_, x509) = X509Certificate::from_der(der_bytes).ok()?;
-                Some(ParsedCert::from_x509(&x509, path))
+                let parsed = X509Certificate::from_der(der_bytes)
+                    .ok()
+                    .map(|(_, x509)| ParsedCert::from_x509(&x509, path));
+                parsed.into_iter().collect::<Vec<_>>()
             }
-            _ => None,
+            p12_keystore::KeyStoreEntry::PrivateKeyChain(chain) => {
+                chain
+                    .chain()
+                    .iter()
+                    .filter_map(|cert| {
+                        let der_bytes = cert.as_der();
+                        let (_, x509) = X509Certificate::from_der(der_bytes).ok()?;
+                        Some(ParsedCert::from_x509(&x509, path))
+                    })
+                    .collect::<Vec<_>>()
+            }
         })
         .collect();
 
@@ -251,10 +263,104 @@ pub fn parse_pem_multi(pem_data: &[u8], path: &str) -> Result<Vec<ParsedCert>, S
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    const SAMPLE_PEM: &[u8] = include_bytes!("fixtures/sample.pem");
+    const SAMPLE_DER: &[u8] = include_bytes!("fixtures/sample.der");
+    const CHAIN_PEM: &[u8] = include_bytes!("fixtures/chain.pem");
+    const SAMPLE_P12: &[u8] = include_bytes!("fixtures/sample.p12");
+
+    fn assert_cert_populated(cert: &ParsedCert, path: &str) {
+        assert!(cert.subject.contains("DevTools"), "subject: {}", cert.subject);
+        assert!(cert.issuer.contains("DevTools"), "issuer: {}", cert.issuer);
+        assert!(!cert.serial_number.is_empty());
+        assert_eq!(cert.raw_path, path);
+        assert_eq!(cert.version, "v3");
+        assert!(!cert.signature_algorithm.is_empty());
+        assert!(!cert.public_key_info.algorithm_oid.is_empty());
+        assert!(!cert.public_key_info.key_pem.is_empty());
+    }
+
+    fn write_temp_file(ext: &str, contents: &[u8]) -> std::path::PathBuf {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!(
+            "devtools-cert-test-{}-{}.{}",
+            std::process::id(), unique, ext
+        ));
+        fs::write(&path, contents).unwrap();
+        path
+    }
 
     #[test]
     fn test_format_serial() {
         assert_eq!(format_serial(&[0xAB, 0xCD, 0xEF]), "AB:CD:EF");
         assert_eq!(format_serial(&[]), "");
+    }
+
+    #[test]
+    fn parses_pem_and_der_fixtures_with_populated_metadata() {
+        let pem = parse_pem_cert(SAMPLE_PEM, "sample.pem").unwrap();
+        assert_cert_populated(&pem, "sample.pem");
+
+        let der = parse_der_cert(SAMPLE_DER, "sample.der").unwrap();
+        assert_cert_populated(&der, "sample.der");
+    }
+
+    #[test]
+    fn parses_multi_pem_chain_fixture() {
+        let certs = parse_pem_multi(CHAIN_PEM, "chain.pem").unwrap();
+
+        assert_eq!(certs.len(), 2);
+        assert_cert_populated(&certs[0], "chain.pem");
+        assert_cert_populated(&certs[1], "chain.pem");
+    }
+
+    #[test]
+    fn parses_pkcs12_with_public_test_password_and_rejects_wrong_password() {
+        let certs = parse_pkcs12(SAMPLE_P12, "test-password", "sample.p12").unwrap();
+        assert_eq!(certs.len(), 1);
+        assert_cert_populated(&certs[0], "sample.p12");
+
+        let err = parse_pkcs12(SAMPLE_P12, "wrong-password", "sample.p12").unwrap_err();
+        assert!(err.contains("Failed to open PKCS#12"), "{err}");
+    }
+
+    #[test]
+    fn detect_and_parse_routes_supported_extensions_and_reports_errors() {
+        for (ext, contents, expected_count) in [
+            ("pem", SAMPLE_PEM, 1usize),
+            ("der", SAMPLE_DER, 1usize),
+            ("crt", SAMPLE_DER, 1usize),
+            ("cer", SAMPLE_PEM, 1usize),
+        ] {
+            let path = write_temp_file(ext, contents);
+            let certs = detect_and_parse(&path).unwrap();
+            assert_eq!(certs.len(), expected_count, "{}", path.display());
+            fs::remove_file(path).unwrap();
+        }
+
+        let p12_path = write_temp_file("p12", SAMPLE_P12);
+        let p12_err = detect_and_parse(&p12_path).unwrap_err();
+        assert!(p12_err.contains("PKCS#12"), "{p12_err}");
+        fs::remove_file(p12_path).unwrap();
+
+        let pfx_path = write_temp_file("pfx", SAMPLE_P12);
+        let pfx_err = detect_and_parse(&pfx_path).unwrap_err();
+        assert!(pfx_err.contains("PKCS#12"), "{pfx_err}");
+        fs::remove_file(pfx_path).unwrap();
+
+        let unsupported = write_temp_file("txt", b"not a cert");
+        let unsupported_err = detect_and_parse(&unsupported).unwrap_err();
+        assert!(unsupported_err.contains("Unsupported file format"));
+        fs::remove_file(unsupported).unwrap();
+
+        let invalid_der = write_temp_file("der", b"not a cert");
+        let invalid_err = detect_and_parse(&invalid_der).unwrap_err();
+        assert!(invalid_err.contains("No valid PEM certificates") || invalid_err.contains("Failed"));
+        fs::remove_file(invalid_der).unwrap();
     }
 }
