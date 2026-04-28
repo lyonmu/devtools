@@ -11,6 +11,14 @@ const FONT_TITLE: gpui::Pixels = gpui::px(18.0);
 const FONT_BODY: gpui::Pixels = gpui::px(16.0);
 const FONT_SMALL: gpui::Pixels = gpui::px(14.0);
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum UiStatusKind {
+    Empty,
+    Success,
+    Error,
+    Info,
+}
+
 /// Root application view — manages top tab bar, per-tab left menu, and right content.
 pub enum DevToolsApp {
     Cert(CertTab),
@@ -113,6 +121,41 @@ impl DevToolsApp {
         }).detach();
     }
 
+    fn render_status_banner(kind: UiStatusKind, message: impl Into<String>) -> gpui::Div {
+        let (border, text) = match kind {
+            UiStatusKind::Empty => (rgb(0x888899), rgb(0xaaaabb)),
+            UiStatusKind::Success => (rgb(0x22c55e), rgb(0xbbf7d0)),
+            UiStatusKind::Error => (rgb(0xf87171), rgb(0xfecaca)),
+            UiStatusKind::Info => (rgb(0x3b82f6), rgb(0xbfdbfe)),
+        };
+        div()
+            .w_full()
+            .px_3()
+            .py_2()
+            .bg(rgb(0x1e1e2e))
+            .border_l_4()
+            .border_color(border)
+            .rounded_md()
+            .text_size(FONT_BODY)
+            .text_color(text)
+            .child(message.into())
+    }
+
+    fn result_card(title: &str, body: gpui::AnyElement) -> gpui::Div {
+        div()
+            .w_full()
+            .p_3()
+            .bg(rgb(0x1a1a2a))
+            .border_1()
+            .border_color(rgb(0x3a3a4a))
+            .rounded_md()
+            .flex()
+            .flex_col()
+            .gap_2()
+            .child(div().text_size(FONT_BODY).text_color(rgb(0xffffff)).child(title.to_string()))
+            .child(body)
+    }
+
     fn sync_algo_inputs_to_tool_state(&mut self, cx: &mut Context<Self>) {
         if let Self::Algo(t) = self {
             t.sync_inputs_to_tool_state(cx);
@@ -148,11 +191,21 @@ impl DevToolsApp {
             Self::Cert(t) => {
                 let content = t.render_content();
                 if t.active_menu == 0 {
+                    let cert_status = if t.is_importing {
+                        Self::render_status_banner(UiStatusKind::Info, "正在解析证书...")
+                    } else if let Some(err) = &t.import_error {
+                        Self::render_status_banner(UiStatusKind::Error, format!("导入失败: {err}"))
+                    } else if let Some(cert) = &t.loaded_cert {
+                        Self::render_status_banner(UiStatusKind::Success, format!("导入成功: {}", cert.subject))
+                    } else {
+                        Self::render_status_banner(UiStatusKind::Empty, "请选择证书文件")
+                    };
                     return div()
                         .id(ElementId::Name(SharedString::from("cert-tab-content")))
-                        .flex_1().flex().flex_col().overflow_y_scroll()
+                        .flex_1().flex().flex_col().gap_2().p_4().overflow_y_scroll()
+                        .child(cert_status)
                         .child(
-                            div().flex().flex_row().justify_end().px_4().py_2()
+                            div().flex().flex_row().justify_end().py_2()
                                 .child(
                                     div()
                                         .id(ElementId::Name(SharedString::from("open-file-btn")))
@@ -248,6 +301,15 @@ impl DevToolsApp {
             container = container.child(render_text_input(sym_iv, "sym-iv", window, cx));
         }
 
+        let status = if let Some(err) = &s.error {
+            Self::render_status_banner(UiStatusKind::Error, format!("错误: {err}"))
+        } else if !s.output_hex.is_empty() {
+            Self::render_status_banner(UiStatusKind::Success, "执行完成")
+        } else {
+            Self::render_status_banner(UiStatusKind::Empty, "请选择输入并点击执行")
+        };
+        container = container.child(status);
+
         let need_exec = true;
         if need_exec {
             container = container.child(
@@ -281,9 +343,10 @@ impl DevToolsApp {
         }
 
         if !s.output_hex.is_empty() {
-            container = container.child(div().text_size(FONT_BODY).text_color(rgb(0x888899)).child("输出结果:").mt_2());
-            container = container.child(div().px_3().py_2().bg(rgb(0x1a1a2a)).rounded_md()
-                .child(div().text_size(FONT_BODY).text_color(rgb(0x4ade80)).child(s.output_hex.clone())));
+            container = container.child(Self::result_card(
+                "输出结果",
+                div().text_size(FONT_BODY).text_color(rgb(0x4ade80)).child(s.output_hex.clone()).into_any_element(),
+            ));
         }
 
         if let Some(err) = &s.error {
@@ -303,6 +366,15 @@ impl DevToolsApp {
         let mut container = div()
             .flex_1().p_4().gap_4().flex().flex_col()
             .child(div().text_size(FONT_TITLE).text_color(rgb(0xffffff)).child("非对称算法"));
+
+        let status = if let Some(err) = &a.error {
+            Self::render_status_banner(UiStatusKind::Error, format!("错误: {err}"))
+        } else if !a.output_text.is_empty() || !a.rsa_pub_key_pem.is_empty() || !a.signature_hex.is_empty() {
+            Self::render_status_banner(UiStatusKind::Success, "执行完成")
+        } else {
+            Self::render_status_banner(UiStatusKind::Empty, "请选择操作并点击执行")
+        };
+        container = container.child(status);
 
         container = container.child(
             div().text_size(FONT_BODY).text_color(rgb(0x888899)).child("操作选择:").mt_2(),
@@ -440,9 +512,10 @@ impl DevToolsApp {
         }
 
         if !a.output_text.is_empty() {
-            container = container.child(div().text_size(FONT_BODY).text_color(rgb(0x888899)).child("结果:").mt_2());
-            container = container.child(div().px_3().py_2().bg(rgb(0x1a1a2a)).rounded_md()
-                .child(div().text_size(FONT_BODY).text_color(rgb(0x4ade80)).child(a.output_text.clone())));
+            container = container.child(Self::result_card(
+                "结果",
+                div().text_size(FONT_BODY).text_color(rgb(0x4ade80)).child(a.output_text.clone()).into_any_element(),
+            ));
         }
 
         if !a.rsa_pub_key_pem.is_empty() {
@@ -483,6 +556,15 @@ impl DevToolsApp {
         let mut container = div()
             .flex_1().p_4().gap_4().flex().flex_col()
             .child(div().text_size(FONT_TITLE).text_color(rgb(0xffffff)).child("哈希算法"));
+
+        let status = if let Some(err) = &h.error {
+            Self::render_status_banner(UiStatusKind::Error, format!("错误: {err}"))
+        } else if !h.output_hex.is_empty() {
+            Self::render_status_banner(UiStatusKind::Success, "执行完成")
+        } else {
+            Self::render_status_banner(UiStatusKind::Empty, "请输入内容并点击执行")
+        };
+        container = container.child(status);
 
         container = container.child(
             div().text_size(FONT_BODY).text_color(rgb(0x888899)).child("算法选择:").mt_2(),
@@ -552,9 +634,10 @@ impl DevToolsApp {
         );
 
         if !h.output_hex.is_empty() {
-            container = container.child(div().text_size(FONT_BODY).text_color(rgb(0x888899)).child("哈希结果:").mt_2());
-            container = container.child(div().px_3().py_2().bg(rgb(0x1a1a2a)).rounded_md()
-                .child(div().text_size(FONT_BODY).text_color(rgb(0x4ade80)).child(h.output_hex.clone())));
+            container = container.child(Self::result_card(
+                "哈希结果",
+                div().text_size(FONT_BODY).text_color(rgb(0x4ade80)).child(h.output_hex.clone()).into_any_element(),
+            ));
         }
 
         if let Some(err) = &h.error {
@@ -570,6 +653,15 @@ impl DevToolsApp {
         let mut container = div()
             .flex_1().p_4().gap_4().flex().flex_col()
             .child(div().text_size(FONT_TITLE).text_color(rgb(0xffffff)).child("密码封装算法 (KEM)"));
+
+        let status = if let Some(err) = &k.error {
+            Self::render_status_banner(UiStatusKind::Error, format!("错误: {err}"))
+        } else if !k.output_text.is_empty() || !k.public_key_hex.is_empty() || !k.ciphertext_hex.is_empty() {
+            Self::render_status_banner(UiStatusKind::Success, "执行完成")
+        } else {
+            Self::render_status_banner(UiStatusKind::Empty, "请选择算法并点击执行")
+        };
+        container = container.child(status);
 
         container = container.child(
             div().text_size(FONT_BODY).text_color(rgb(0x888899)).child("算法选择:").mt_2(),
@@ -687,6 +779,15 @@ impl DevToolsApp {
         let mut container = div()
             .flex_1().p_4().gap_4().flex().flex_col()
             .child(div().text_size(FONT_TITLE).text_color(rgb(0xffffff)).child("数字签名算法"));
+
+        let status = if let Some(err) = &s.error {
+            Self::render_status_banner(UiStatusKind::Error, format!("错误: {err}"))
+        } else if !s.output_text.is_empty() || !s.public_key_hex.is_empty() || !s.signature_hex.is_empty() {
+            Self::render_status_banner(UiStatusKind::Success, "执行完成")
+        } else {
+            Self::render_status_banner(UiStatusKind::Empty, "请输入消息并点击执行")
+        };
+        container = container.child(status);
 
         container = container.child(
             div().text_size(FONT_BODY).text_color(rgb(0x888899)).child("算法选择:").mt_2(),
