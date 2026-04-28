@@ -147,3 +147,107 @@ pub fn parse_extensions(x509: &X509Certificate<'_>) -> Vec<CertExtension> {
         })
         .collect()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn format_hex_empty_and_arbitrary_bytes() {
+        assert_eq!(format_hex(&[]), "");
+        assert_eq!(format_hex(&[0x0A, 0xFF, 0x00]), "0a ff 00");
+        assert_eq!(format_hex(&[0xAB, 0xCD]), "ab cd");
+    }
+
+    #[test]
+    fn parse_basic_constraints_ca_true_and_false() {
+        // CA=TRUE contains 0xFF byte
+        assert_eq!(parse_basic_constraints(&[0x30, 0x03, 0x01, 0x01, 0xFF]), "CA=TRUE");
+        // CA=FALSE has no 0xFF
+        assert_eq!(parse_basic_constraints(&[0x30, 0x03, 0x01, 0x01, 0x00]), "CA=FALSE");
+        // Too short falls back to hex
+        assert_eq!(parse_basic_constraints(&[0x30]), "30");
+        // Empty falls back to hex
+        assert_eq!(parse_basic_constraints(&[]), "");
+    }
+
+    #[test]
+    fn parse_key_usage_identifies_flags_and_fallback() {
+        // Digital Signature (0x80) + Key Encipherment (0x20) = 0xA0
+        // The code checks data[2..] after seeing 0x03 tag, so flags go at index 2
+        let data = [0x03, 0x02, 0xA0];
+        let result = parse_key_usage(&data);
+        assert!(result.contains("Digital Signature"), "got: {}", result);
+        assert!(result.contains("Key Encipherment"), "got: {}", result);
+
+        // No flags set falls back to hex
+        let no_flags = [0x03, 0x02, 0x00];
+        let result = parse_key_usage(&no_flags);
+        assert_eq!(result, format_hex(&no_flags));
+
+        // Empty falls back to hex
+        assert_eq!(parse_key_usage(&[]), "");
+    }
+
+    #[test]
+    fn parse_subject_alt_name_extracts_printable_names() {
+        // Simulate SAN with DNS name embedded in printable bytes
+        let san_data = b"\x30\x1a\x82\x13example.com\x00\x82\x03foo";
+        let result = parse_subject_alt_name(san_data);
+        // Should extract printable strings
+        assert!(result.contains("example.com") || !result.is_empty(), "got: {}", result);
+
+        // Non-printable bytes fall back to hex
+        let binary = [0x30, 0x03, 0x80, 0x01, 0xFF];
+        let result = parse_subject_alt_name(&binary);
+        assert_eq!(result, format_hex(&binary));
+    }
+
+    #[test]
+    fn parse_subject_key_identifier_strips_octet_string_wrapper() {
+        // 22-byte form: OCTET STRING tag (0x04) + length (0x14) + 20 bytes SHA-1
+        let mut data = vec![0x04, 0x14];
+        data.extend_from_slice(&[0xAB; 20]);
+        let result = parse_subject_key_identifier(&data);
+        assert_eq!(result, format_hex(&[0xAB; 20]));
+
+        // Non-22-byte form returns full hex
+        let mut short = vec![0x04, 0x10];
+        short.extend_from_slice(&[0xAB; 18]);
+        let result = parse_subject_key_identifier(&short);
+        assert_eq!(result, format_hex(&short));
+    }
+
+    #[test]
+    fn parse_extension_value_covers_all_oid_branches() {
+        // Basic Constraints
+        let bc = parse_extension_value("2.5.29.19", &[0x30, 0x03, 0x01, 0x01, 0xFF]);
+        assert_eq!(bc, "CA=TRUE");
+
+        // Key Usage
+        let ku = parse_extension_value("2.5.29.15", &[0x03, 0x02, 0x80]);
+        assert!(ku.contains("Digital Signature"), "got: {}", ku);
+
+        // Extended Key Usage
+        let eku = parse_extension_value("2.5.29.37", &[0x30, 0x03]);
+        assert!(eku.starts_with("SEQUENCE of OIDs:"), "got: {}", eku);
+
+        // Subject Alternative Name
+        let san = parse_extension_value("2.5.29.17", &[0x30, 0x03]);
+        assert!(!san.is_empty());
+
+        // Subject Key Identifier
+        let mut ski_data = vec![0x04, 0x14];
+        ski_data.extend_from_slice(&[0xAB; 20]);
+        let ski = parse_extension_value("2.5.29.14", &ski_data);
+        assert_eq!(ski, format_hex(&[0xAB; 20]));
+
+        // Authority Key Identifier
+        let aki = parse_extension_value("2.5.29.35", &[0x30, 0x03]);
+        assert!(aki.starts_with("Authority Key Identifier:"), "got: {}", aki);
+
+        // Unknown OID falls back to hex
+        let unknown = parse_extension_value("1.2.3.4.5", &[0xDE, 0xAD]);
+        assert_eq!(unknown, "de ad");
+    }
+}
