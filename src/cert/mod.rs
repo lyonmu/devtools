@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 use std::path::Path;
+use base64::Engine;
 use x509_parser::prelude::*;
 use x509_parser::certificate::X509Certificate;
 use x509_parser::x509::X509Version;
@@ -104,9 +105,11 @@ fn format_serial(bytes: &[u8]) -> String {
 }
 
 fn format_pem_public_key(x509: &X509Certificate<'_>) -> String {
-    let pk = x509.public_key();
-    let data = &pk.subject_public_key.data;
-    let base64 = base64_encode(&data);
+    format_spki_der_as_pem(x509.public_key().raw)
+}
+
+fn format_spki_der_as_pem(spki_der: &[u8]) -> String {
+    let base64 = base64::engine::general_purpose::STANDARD.encode(spki_der);
     let mut lines = String::from("-----BEGIN PUBLIC KEY-----\n");
     for chunk in base64.as_bytes().chunks(64) {
         if let Ok(s) = std::str::from_utf8(chunk) {
@@ -116,35 +119,6 @@ fn format_pem_public_key(x509: &X509Certificate<'_>) -> String {
     }
     lines.push_str("-----END PUBLIC KEY-----");
     lines
-}
-
-fn base64_encode(data: &[u8]) -> String {
-    const TABLE: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    let mut result = String::new();
-    let chunks = data.chunks(3);
-    let pad_len = (3 - data.len() % 3) % 3;
-    for chunk in chunks {
-        let b0 = chunk[0] as u32;
-        let b1 = if chunk.len() > 1 { chunk[1] as u32 } else { 0 };
-        let b2 = if chunk.len() > 2 { chunk[2] as u32 } else { 0 };
-        let triple = (b0 << 16) | (b1 << 8) | b2;
-        result.push(TABLE[((triple >> 18) & 0x3F) as usize] as char);
-        result.push(TABLE[((triple >> 12) & 0x3F) as usize] as char);
-        if chunk.len() > 1 {
-            result.push(TABLE[((triple >> 6) & 0x3F) as usize] as char);
-        } else {
-            result.push('=');
-        }
-        if chunk.len() > 2 {
-            result.push(TABLE[(triple & 0x3F) as usize] as char);
-        } else {
-            result.push('=');
-        }
-    }
-    // Simple base64 - this is a simplified version
-    // For proper base64, we should handle padding correctly
-    let _ = pad_len;
-    result
 }
 
 /// Parse a DER-encoded X.509 certificate.
@@ -263,8 +237,10 @@ pub fn parse_pem_multi(pem_data: &[u8], path: &str) -> Result<Vec<ParsedCert>, S
 #[cfg(test)]
 mod tests {
     use super::*;
+    use p256::pkcs8::{DecodePublicKey as _, EncodePublicKey as _};
     use std::fs;
     use std::time::{SystemTime, UNIX_EPOCH};
+    use x509_parser::pem::Pem;
 
     const SAMPLE_PEM: &[u8] = include_bytes!("fixtures/sample.pem");
     const SAMPLE_DER: &[u8] = include_bytes!("fixtures/sample.der");
@@ -295,10 +271,48 @@ mod tests {
         path
     }
 
+    fn pem_to_der(pem: &str) -> Vec<u8> {
+        let mut iter = Pem::iter_from_buffer(pem.as_bytes());
+        let parsed = iter.next().expect("PEM block should exist").expect("PEM should parse");
+        parsed.contents
+    }
+
     #[test]
     fn test_format_serial() {
         assert_eq!(format_serial(&[0xAB, 0xCD, 0xEF]), "AB:CD:EF");
         assert_eq!(format_serial(&[]), "");
+    }
+
+    #[test]
+    fn formatted_public_key_pem_round_trips_spki_der() {
+        let mut iter = Pem::iter_from_buffer(SAMPLE_PEM);
+        let cert_pem = iter.next().expect("PEM block should exist").expect("PEM should parse");
+        let (_, x509) = X509Certificate::from_der(&cert_pem.contents).expect("cert DER should parse");
+
+        let key_pem = format_pem_public_key(&x509);
+        let rebuilt_der = pem_to_der(&key_pem);
+        assert_eq!(rebuilt_der, x509.public_key().raw);
+    }
+
+    #[test]
+    fn formatted_rsa_public_key_can_be_parsed_by_rsa_api() {
+        let cert = parse_pem_cert(SAMPLE_PEM, "fixtures/sample.pem").expect("sample cert should parse");
+        let spki_der = pem_to_der(&cert.public_key_info.key_pem);
+        let key = <rsa::RsaPublicKey as rsa::pkcs8::DecodePublicKey>::from_public_key_der(&spki_der);
+        assert!(key.is_ok(), "formatted PEM should be valid RSA SPKI");
+    }
+
+    #[test]
+    fn formatted_p256_public_key_can_be_parsed_by_p256_api() {
+        let secret = p256::SecretKey::from_slice(&[3u8; 32]).expect("test private key should be valid");
+        let der = secret
+            .public_key()
+            .to_public_key_der()
+            .expect("p256 public key DER should encode");
+        let key_pem = format_spki_der_as_pem(der.as_bytes());
+        let spki_der = pem_to_der(&key_pem);
+        let key = p256::PublicKey::from_public_key_der(&spki_der);
+        assert!(key.is_ok(), "formatted PEM should be valid P-256 SPKI");
     }
 
     #[test]

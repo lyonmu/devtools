@@ -30,6 +30,7 @@ rand_core = "0.6"
 ml-kem = "0.2"
 ml-dsa = "0.1.0-rc.8"
 once_cell = "1.19"
+base64 = "0.22"
 
 # Hash algorithms
 sha2 = "0.10"
