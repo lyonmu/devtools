@@ -1,7 +1,7 @@
 use gpui::{div, px, rgb, AnyElement, ClipboardItem, Context, ElementId, InteractiveElement, IntoElement, MouseButton, ParentElement, SharedString, StatefulInteractiveElement, Styled, Window};
 use crate::components::input::render_text_input;
 use crate::components::ui_helpers::{
-    render_action_button, render_mono_output_block, render_result_card, render_status_banner,
+    render_action_button, render_mono_output_block, render_status_banner,
     COLOR_BG_ACTIVE, COLOR_BG_MENU, COLOR_BG_PANEL, COLOR_ERROR, COLOR_INFO, COLOR_SUCCESS,
     COLOR_TEXT_BODY, COLOR_TEXT_MUTED, COLOR_TEXT_PRIMARY,
     COLOR_TEXT_SECONDARY, FONT_BODY, FONT_SMALL, FONT_TITLE, UiStatusKind,
@@ -301,10 +301,8 @@ impl DevToolsApp {
             );
         }
         if !s.output_hex.is_empty() {
-            container = container.child(render_result_card(
-                "输出结果",
-                render_mono_output_block(&s.output_hex).into_any_element(),
-            ));
+            container = container.child(div().text_size(FONT_BODY).text_color(COLOR_TEXT_SECONDARY).child("输出结果:").mt_2());
+            container = container.child(Self::copyable_display(&s.output_hex, cx));
         }
         if let Some(err) = &s.error {
             container = container.child(div().text_size(FONT_BODY).text_color(COLOR_ERROR).child(format!("错误: {}", err)));
@@ -444,10 +442,8 @@ impl DevToolsApp {
             );
         }
         if !a.output_text.is_empty() {
-            container = container.child(render_result_card(
-                "结果",
-                render_mono_output_block(&a.output_text).into_any_element(),
-            ));
+            container = container.child(div().text_size(FONT_BODY).text_color(COLOR_TEXT_SECONDARY).child("结果:").mt_2());
+            container = container.child(Self::copyable_display(&a.output_text, cx));
         }
         if !a.rsa_pub_key_pem.is_empty() {
             container = container.child(div().text_size(FONT_BODY).text_color(COLOR_TEXT_SECONDARY).child("公钥 (PEM):").mt_2());
@@ -548,10 +544,8 @@ impl DevToolsApp {
                 ),
         );
         if !h.output_hex.is_empty() {
-            container = container.child(render_result_card(
-                "哈希结果",
-                render_mono_output_block(&h.output_hex).into_any_element(),
-            ));
+            container = container.child(div().text_size(FONT_BODY).text_color(COLOR_TEXT_SECONDARY).child("哈希结果:").mt_2());
+            container = container.child(Self::copyable_display(&h.output_hex, cx));
         }
         if let Some(err) = &h.error {
             container = container.child(div().text_size(FONT_BODY).text_color(COLOR_ERROR).child(format!("错误: {}", err)));

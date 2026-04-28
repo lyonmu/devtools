@@ -135,6 +135,46 @@ pub fn render_info_row(label: &str, value: &str) -> gpui::Div {
         )
 }
 
+/// Render a monospaced output block with a copy button
+pub fn render_mono_output_block_with_copy(
+    text: &str,
+    on_copy: impl Fn() + 'static,
+) -> gpui::Div {
+    div().flex().flex_row().gap_2().items_center()
+        .child(render_mono_output_block(text).flex_1())
+        .child(
+            div()
+                .id(ElementId::Name(SharedString::from(format!("copy-{}", text.len()))))
+                .px_2().py_1().bg(COLOR_BG_ACTIVE)
+                .text_color(COLOR_TEXT_PRIMARY).text_size(FONT_SMALL).rounded_md().cursor_pointer()
+                .on_mouse_down(gpui::MouseButton::Left, move |_, _, _| {
+                    on_copy();
+                })
+                .child("复制"),
+        )
+}
+
+/// Render a label-value info row with a copy button
+pub fn render_info_row_with_copy(
+    label: &str,
+    value: &str,
+    on_copy: impl Fn() + 'static,
+) -> gpui::Div {
+    div().flex().flex_row().gap_4().py_1().border_b_1().border_color(COLOR_BORDER)
+        .child(div().w(gpui::px(120.0)).text_size(FONT_BODY).text_color(COLOR_TEXT_SECONDARY).child(label.to_string()))
+        .child(div().flex_1().text_size(FONT_BODY).text_color(COLOR_TEXT_BODY).child(value.to_string()))
+        .child(
+            div()
+                .id(ElementId::Name(SharedString::from(format!("info-copy-{}", label))))
+                .px_2().py_1().bg(COLOR_BG_ACTIVE).rounded_md().cursor_pointer()
+                .text_size(FONT_SMALL).text_color(COLOR_TEXT_PRIMARY)
+                .on_mouse_down(gpui::MouseButton::Left, move |_, _, _| {
+                    on_copy();
+                })
+                .child("复制"),
+        )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
