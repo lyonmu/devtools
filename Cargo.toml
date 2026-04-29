@@ -35,3 +35,31 @@ base64 = "0.22"
 # Hash algorithms
 sha2 = "0.10"
 sm3 = "0.4"
+
+[package.metadata.bundle]
+name = "DevTools"
+identifier = "com.lyonmu.devtools"
+version = "0.1.0"
+icon = ["icons/icon.icns"]
+category = "DeveloperTool"
+short_description = "密码学桌面工具箱"
+long_description = """
+DevTools 是一个基于 GPUI 框架构建的跨平台密码学桌面工具，
+支持证书解析、算法分析与密码学运算。
+"""
+
+[package.metadata.deb]
+maintainer = "lyonmu <lyonmu@foxmail.com>"
+copyright = "2026, lyonmu <lyonmu@foxmail.com>"
+license-file = ["LICENSE", "4"]
+extended-description = """\
+DevTools 是一个基于 GPUI 框架构建的跨平台密码学桌面工具，\
+支持证书解析、算法分析与密码学运算。\
+"""
+depends = "$auto"
+section = "devel"
+priority = "optional"
+assets = [
+    ["target/release/devtools", "usr/bin/", "755"],
+    ["README.md", "usr/share/doc/devtools/README", "644"],
+]
