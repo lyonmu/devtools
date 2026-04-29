@@ -98,7 +98,7 @@ cargo bundle --release
 
 ```bash
 # 构建并打包
-cargo deb --release
+cargo deb
 ```
 
 输出：`target/debian/devtools_0.1.0_amd64.deb`

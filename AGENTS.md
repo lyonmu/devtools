@@ -35,7 +35,7 @@ cargo test -p devtools -- cert::oid_resolver     # single module
 cargo bundle --release                    # optional: .app only
 
 # Linux: cargo deb only works on Linux
-cargo deb --release                       # → target/debian/devtools_0.1.0_amd64.deb
+cargo deb                              # → target/debian/devtools_0.1.0_amd64.deb
 ```
 
 Tools: `cargo install cargo-bundle` (macOS), `cargo install cargo-deb` (Linux).
