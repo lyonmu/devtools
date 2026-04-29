@@ -74,11 +74,17 @@ cargo install cargo-deb     # Linux
 # 1. 生成图标
 ./scripts/make-icons.sh
 
-# 2. 构建并打包
+# 2. 构建 .app bundle
 cargo bundle --release
+
+# 3. 创建 DMG（可选）
+hdiutil create -volname "DevTools" \
+  -srcfolder target/release/bundle/osx/DevTools.app \
+  -ov -format UDZO \
+  target/release/bundle/osx/DevTools.dmg
 ```
 
-输出：`target/release/bundle/osx/DevTools.dmg`
+输出：`target/release/bundle/osx/DevTools.app` 或 `DevTools.dmg`
 
 ### Ubuntu/Debian | Ubuntu/Debian
 
