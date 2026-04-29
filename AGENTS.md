@@ -27,9 +27,26 @@ cargo test -p devtools                           # all tests
 cargo test -p devtools -- cert::oid_resolver     # single module
 ```
 
+## Packaging
+
+```bash
+# macOS: generate icon (requires chip.png in repo root, macOS-only tools sips/iconutil)
+./scripts/make-icons.sh
+cargo bundle --release                    # → target/release/bundle/osx/DevTools.app
+hdiutil create -volname "DevTools" \      # optional: create DMG for distribution
+  -srcfolder target/release/bundle/osx/DevTools.app \
+  -ov -format UDZO target/release/bundle/osx/DevTools.dmg
+
+# Linux: cargo deb only works on Linux
+cargo deb --release                       # → target/debian/devtools_0.1.0_amd64.deb
+```
+
+Tools: `cargo install cargo-bundle` (macOS), `cargo install cargo-deb` (Linux).
+
 ## Gotchas
 
 - **GPUI 0.2 API**: `.id()` returns `Stateful<Div>` not `Div` — helper functions must return `Stateful<Div>`. `.child()` requires owned types — pass `s.clone()` not `&s` for String fields.
 - **GPUI is a native GUI framework** — `cargo run` needs a windowing system (X11/Wayland on Linux, native on macOS). No headless mode.
 - File dialogs and async I/O use `cx.spawn()` with `gpui::WeakEntity`. The file reading itself is synchronous inside the async block.
 - Chinese UI text throughout (tabs, labels, error messages).
+- `cargo bundle` creates `.app` not `.dmg` — use `hdiutil create` for DMG. `cargo deb` only runs on Linux.
