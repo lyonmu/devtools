@@ -38,7 +38,7 @@ hdiutil create -volname "DevTools" \      # optional: create DMG for distributio
   -ov -format UDZO target/release/bundle/osx/DevTools.dmg
 
 # Linux: cargo deb only works on Linux
-cargo deb --release                       # → target/debian/devtools_0.1.0_amd64.deb
+cargo deb -- --release                       # → target/debian/devtools_0.1.0_amd64.deb
 ```
 
 Tools: `cargo install cargo-bundle` (macOS), `cargo install cargo-deb` (Linux).
