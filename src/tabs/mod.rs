@@ -99,7 +99,7 @@ impl CertTab {
         };
         div()
             .w_full().p_4().gap_4().flex().flex_col().child(div().text_size(FONT_TITLE).text_color(COLOR_TEXT_PRIMARY).child("导入证书文件"))
-            .child(div().flex().flex_col().gap_2().items_center().justify_center().flex_1()
+            .child(div().flex().flex_col().gap_2().items_center().justify_center()
                 .child(div().text_size(FONT_BODY).text_color(COLOR_TEXT_SECONDARY).child("点击「选择证书文件」按钮导入文件"))
                 .child(div().text_size(FONT_BODY).text_color(COLOR_TEXT_MUTED).child("支持格式: .pem, .der, .crt, .cer, .p12, .pfx"))
             )

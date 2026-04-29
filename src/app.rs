@@ -1,4 +1,8 @@
-use gpui::{div, px, rgb, AnyElement, ClipboardItem, Context, ElementId, InteractiveElement, IntoElement, MouseButton, ParentElement, SharedString, StatefulInteractiveElement, Styled, Window};
+use gpui::{
+    canvas, div, point, px, rgb, AnyElement, ClipboardItem, Context, ElementId,
+    InteractiveElement, IntoElement, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent,
+    ParentElement, Pixels, ScrollHandle, SharedString, StatefulInteractiveElement, Styled, Window,
+};
 use crate::components::input::render_text_input;
 use crate::components::ui_helpers::{
     render_action_button, render_mono_output_block, render_status_banner,
@@ -21,6 +25,9 @@ pub struct DevToolsApp {
     cert_tab: CertTab,
     algo_tab: AlgoTab,
     active_tab: AppTab,
+    right_scroll_handle: ScrollHandle,
+    right_scrollbar_drag_y: Option<Pixels>,
+    right_scrollbar_layout_sync_pending: bool,
 }
 impl DevToolsApp {
     pub fn new(_window: &mut Window, cx: &mut Context<Self>) -> Self {
@@ -28,6 +35,9 @@ impl DevToolsApp {
             cert_tab: CertTab::new(),
             algo_tab: AlgoTab::new(cx),
             active_tab: AppTab::Cert,
+            right_scroll_handle: ScrollHandle::new(),
+            right_scrollbar_drag_y: None,
+            right_scrollbar_layout_sync_pending: true,
         }
     }
     fn active_tab_index(&self) -> usize {
@@ -57,20 +67,36 @@ impl DevToolsApp {
             1 => self.active_tab = AppTab::Algo,
             _ => {}
         }
-        cx.notify();
+        self.right_scroll_handle.set_offset(point(px(0.0), px(0.0)));
+        self.right_scrollbar_drag_y = None;
+        self.notify_right_content_changed(cx);
     }
     fn select_menu(&mut self, index: usize, _window: &mut Window, cx: &mut Context<Self>) {
         match self.active_tab {
             AppTab::Cert => self.cert_tab.active_menu = index,
             AppTab::Algo => self.algo_tab.active_menu = index,
         }
+        self.right_scroll_handle.set_offset(point(px(0.0), px(0.0)));
+        self.right_scrollbar_drag_y = None;
+        self.notify_right_content_changed(cx);
+    }
+    fn notify_right_content_changed(&mut self, cx: &mut Context<Self>) {
+        self.right_scrollbar_layout_sync_pending = true;
         cx.notify();
+    }
+    fn sync_right_scrollbar_after_layout(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if !self.right_scrollbar_layout_sync_pending {
+            return;
+        }
+
+        self.right_scrollbar_layout_sync_pending = false;
+        cx.on_next_frame(window, |_, _, cx| cx.notify());
     }
     /// Start async file dialog for certificate import.
     fn open_file_dialog(&mut self, cx: &mut Context<Self>) {
         self.cert_tab.is_importing = true;
         self.cert_tab.import_error = None;
-        cx.notify();
+        self.notify_right_content_changed(cx);
         let weak = cx.weak_entity();
         (**cx).spawn(async move |cx| {
             let file = rfd::AsyncFileDialog::new()
@@ -95,12 +121,12 @@ impl DevToolsApp {
                             this.cert_tab.import_error = Some(e);
                         }
                     }
-                    cx.notify();
+                    this.notify_right_content_changed(cx);
                 }).ok();
             } else {
                 weak.update(cx, |this: &mut Self, cx: &mut Context<Self>| {
                     this.cert_tab.is_importing = false;
-                    cx.notify();
+                    this.notify_right_content_changed(cx);
                 }).ok();
             }
         }).detach();
@@ -111,7 +137,7 @@ impl DevToolsApp {
             AppTab::Cert => self.cert_tab.copy_status = Some("已复制".to_string()),
             AppTab::Algo => self.algo_tab.copy_status = Some("已复制".to_string()),
         }
-        cx.notify();
+        self.notify_right_content_changed(cx);
     }
     fn sync_algo_inputs_to_tool_state(&mut self, cx: &mut Context<Self>) {
         self.algo_tab.sync_inputs_to_tool_state(cx);
@@ -134,7 +160,7 @@ impl DevToolsApp {
             _ => {}
         }
         self.sync_algo_tool_state_to_inputs(cx);
-        cx.notify();
+        self.notify_right_content_changed(cx);
     }
     fn render_tab_content(&mut self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
         match self.active_tab {
@@ -160,7 +186,7 @@ impl DevToolsApp {
                     };
                     return div()
                         .id(ElementId::Name(SharedString::from("cert-tab-content")))
-                        .flex_1().flex().flex_col().gap_2().p_4().overflow_y_scroll()
+                        .w_full().flex().flex_col().gap_2().p_4()
                         .child(cert_status)
                         .child(
                             div().flex().flex_row().justify_end().py_2()
@@ -187,7 +213,7 @@ impl DevToolsApp {
                 }
                 let wrapper = div()
                     .id(ElementId::Name(SharedString::from("cert-tab-content")))
-                    .flex_1().flex().flex_col().gap_2().p_4().overflow_y_scroll();
+                    .w_full().flex().flex_col().gap_2().p_4();
                 let wrapper = if let Some(status) = &t.copy_status {
                     wrapper.child(render_status_banner(UiStatusKind::Success, status.clone()))
                 } else {
@@ -207,8 +233,7 @@ impl DevToolsApp {
                 };
                 div()
                     .id(ElementId::Name(SharedString::from("algo-tab-content")))
-                    .flex_1()
-                    .overflow_y_scroll()
+                    .w_full()
                     .on_key_down(cx.listener(|this: &mut DevToolsApp, event: &gpui::KeyDownEvent, window, cx| {
                         if event.keystroke.key == "enter" {
                             this.execute_focused_input(window, cx);
@@ -246,7 +271,7 @@ impl DevToolsApp {
                         let algo = *algo;
                         cx.listener(move |this, _, _, cx| {
                             this.algo_mut().symmetric.select_algo(algo);
-                            cx.notify();
+                            this.notify_right_content_changed(cx);
                         })
                     })
                     .child(format!("{}", algo)),
@@ -259,7 +284,7 @@ impl DevToolsApp {
                 .child(div().text_size(FONT_BODY).text_color(rgb(0x4ade80)).child(format!("{}", mode)))
                 .on_mouse_down(MouseButton::Left, cx.listener(|this, _, _, cx| {
                     this.algo_mut().symmetric.toggle_mode();
-                    cx.notify();
+                    this.notify_right_content_changed(cx);
                 })),
         );
         container = container.child(div().text_size(FONT_BODY).text_color(COLOR_TEXT_SECONDARY).child("输入数据 (十六进制):").mt_2());
@@ -294,7 +319,7 @@ impl DevToolsApp {
                                     this.algo_mut().symmetric.execute();
                                     this.sync_algo_tool_state_to_inputs(cx);
                                     this.algo_mut().error_detail_expanded = false;
-                                    cx.notify();
+                                    this.notify_right_content_changed(cx);
                                 })),
                         )
                         .child(
@@ -303,7 +328,7 @@ impl DevToolsApp {
                                     this.algo_mut().symmetric.reset();
                                     this.algo_mut().error_detail_expanded = false;
                                     this.sync_algo_tool_state_to_inputs(cx);
-                                    cx.notify();
+                                    this.notify_right_content_changed(cx);
                                 })),
                         ),
                 );
@@ -349,7 +374,7 @@ impl DevToolsApp {
                         let op = op;
                         cx.listener(move |this, _, _, cx| {
                             this.algo_mut().asymmetric.select_op(op);
-                            cx.notify();
+                            this.notify_right_content_changed(cx);
                         })
                     })
                     .child(format!("{}", op)),
@@ -367,7 +392,7 @@ impl DevToolsApp {
                             let size = *size;
                             cx.listener(move |this, _, _, cx| {
                                 this.algo_mut().asymmetric.select_rsa_key_size(size);
-                                cx.notify();
+                                this.notify_right_content_changed(cx);
                             })
                         })
                         .child(format!("{}", size)),
@@ -382,7 +407,7 @@ impl DevToolsApp {
                                 this.algo_mut().asymmetric.execute();
                                 this.algo_mut().error_detail_expanded = false;
                                 this.sync_algo_tool_state_to_inputs(cx);
-                                cx.notify();
+                                this.notify_right_content_changed(cx);
                             })),
                     )
                     .child(
@@ -391,7 +416,7 @@ impl DevToolsApp {
                                 this.algo_mut().asymmetric.reset();
                                 this.algo_mut().error_detail_expanded = false;
                                 this.sync_algo_tool_state_to_inputs(cx);
-                                cx.notify();
+                                this.notify_right_content_changed(cx);
                             })),
                     ),
             );
@@ -409,7 +434,7 @@ impl DevToolsApp {
                                 this.algo_mut().asymmetric.execute();
                                 this.algo_mut().error_detail_expanded = false;
                                 this.sync_algo_tool_state_to_inputs(cx);
-                                cx.notify();
+                                this.notify_right_content_changed(cx);
                             })),
                     )
                     .child(
@@ -418,7 +443,7 @@ impl DevToolsApp {
                                 this.algo_mut().asymmetric.reset();
                                 this.algo_mut().error_detail_expanded = false;
                                 this.sync_algo_tool_state_to_inputs(cx);
-                                cx.notify();
+                                this.notify_right_content_changed(cx);
                             })),
                     ),
             );
@@ -435,7 +460,7 @@ impl DevToolsApp {
                                 this.algo_mut().asymmetric.execute();
                                 this.algo_mut().error_detail_expanded = false;
                                 this.sync_algo_tool_state_to_inputs(cx);
-                                cx.notify();
+                                this.notify_right_content_changed(cx);
                             })),
                     )
                     .child(
@@ -444,7 +469,7 @@ impl DevToolsApp {
                                 this.algo_mut().asymmetric.reset();
                                 this.algo_mut().error_detail_expanded = false;
                                 this.sync_algo_tool_state_to_inputs(cx);
-                                cx.notify();
+                                this.notify_right_content_changed(cx);
                             })),
                     ),
             );
@@ -506,7 +531,7 @@ impl DevToolsApp {
                         let algo = *algo;
                         cx.listener(move |this, _, _, cx| {
                             this.algo_mut().hash.select_algo(algo);
-                            cx.notify();
+                            this.notify_right_content_changed(cx);
                         })
                     })
                     .child(format!("{} ({} 字节)", algo, algo.digest_size())),
@@ -519,7 +544,7 @@ impl DevToolsApp {
                 .child(div().text_size(FONT_BODY).text_color(rgb(0x4ade80)).child(format!("{}", fmt)))
                 .on_mouse_down(MouseButton::Left, cx.listener(|this, _, _, cx| {
                     this.algo_mut().hash.toggle_format();
-                    cx.notify();
+                    this.notify_right_content_changed(cx);
                 })),
         );
         let input_label = match h.input_format {
@@ -537,7 +562,7 @@ impl DevToolsApp {
                             this.algo_mut().hash.compute();
                             this.algo_mut().error_detail_expanded = false;
                             this.sync_algo_tool_state_to_inputs(cx);
-                            cx.notify();
+                            this.notify_right_content_changed(cx);
                         })),
                 )
                 .child(
@@ -546,7 +571,7 @@ impl DevToolsApp {
                             this.algo_mut().hash.reset();
                             this.algo_mut().error_detail_expanded = false;
                             this.sync_algo_tool_state_to_inputs(cx);
-                            cx.notify();
+                            this.notify_right_content_changed(cx);
                         })),
                 ),
         );
@@ -589,7 +614,7 @@ impl DevToolsApp {
                         let algo = *algo;
                         cx.listener(move |this, _, _, cx| {
                             this.algo_mut().pq_kem.select_algo(algo);
-                            cx.notify();
+                            this.notify_right_content_changed(cx);
                         })
                     })
                     .child(format!("{}", algo)),
@@ -602,7 +627,7 @@ impl DevToolsApp {
                         .on_mouse_down(MouseButton::Left, cx.listener(|this, _, _, cx| {
                             this.algo_mut().pq_kem.keygen();
                             this.algo_mut().error_detail_expanded = false;
-                            cx.notify();
+                            this.notify_right_content_changed(cx);
                         })),
                 )
                 .child(
@@ -610,7 +635,7 @@ impl DevToolsApp {
                         .on_mouse_down(MouseButton::Left, cx.listener(|this, _, _, cx| {
                             this.algo_mut().pq_kem.encapsulate();
                             this.algo_mut().error_detail_expanded = false;
-                            cx.notify();
+                            this.notify_right_content_changed(cx);
                         })),
                 )
                 .child(
@@ -618,7 +643,7 @@ impl DevToolsApp {
                         .on_mouse_down(MouseButton::Left, cx.listener(|this, _, _, cx| {
                             this.algo_mut().pq_kem.decapsulate();
                             this.algo_mut().error_detail_expanded = false;
-                            cx.notify();
+                            this.notify_right_content_changed(cx);
                         })),
                 )
                 .child(
@@ -626,7 +651,7 @@ impl DevToolsApp {
                         .on_mouse_down(MouseButton::Left, cx.listener(|this, _, _, cx| {
                             this.algo_mut().pq_kem.clear();
                             this.algo_mut().error_detail_expanded = false;
-                            cx.notify();
+                            this.notify_right_content_changed(cx);
                         })),
                 ),
         );
@@ -692,7 +717,7 @@ impl DevToolsApp {
                         let algo = *algo;
                         cx.listener(move |this, _, _, cx| {
                             this.algo_mut().pq_signature.select_algo(algo);
-                            cx.notify();
+                            this.notify_right_content_changed(cx);
                         })
                     })
                     .child(format!("{}", algo)),
@@ -707,7 +732,7 @@ impl DevToolsApp {
                         .on_mouse_down(MouseButton::Left, cx.listener(|this, _, _, cx| {
                             this.algo_mut().pq_signature.keygen();
                             this.algo_mut().error_detail_expanded = false;
-                            cx.notify();
+                            this.notify_right_content_changed(cx);
                         })),
                 )
                 .child(
@@ -717,7 +742,7 @@ impl DevToolsApp {
                             this.algo_mut().pq_signature.sign();
                             this.algo_mut().error_detail_expanded = false;
                             this.sync_algo_tool_state_to_inputs(cx);
-                            cx.notify();
+                            this.notify_right_content_changed(cx);
                         })),
                 )
                 .child(
@@ -727,7 +752,7 @@ impl DevToolsApp {
                             this.algo_mut().pq_signature.verify();
                             this.algo_mut().error_detail_expanded = false;
                             this.sync_algo_tool_state_to_inputs(cx);
-                            cx.notify();
+                            this.notify_right_content_changed(cx);
                         })),
                 )
                 .child(
@@ -736,7 +761,7 @@ impl DevToolsApp {
                             this.algo_mut().pq_signature.clear();
                             this.algo_mut().error_detail_expanded = false;
                             this.sync_algo_tool_state_to_inputs(cx);
-                            cx.notify();
+                            this.notify_right_content_changed(cx);
                         })),
                 ),
         );
@@ -806,7 +831,7 @@ impl DevToolsApp {
                         this.algo_tab.error_detail_expanded = !this.algo_tab.error_detail_expanded
                     }
                 }
-                cx.notify();
+                this.notify_right_content_changed(cx);
             }))
             .child(summary_text);
         if expanded {
@@ -827,6 +852,95 @@ impl DevToolsApp {
             .child(div().text_size(FONT_BODY).text_color(COLOR_INFO).child("⏳"))
             .child(div().text_size(FONT_BODY).text_color(COLOR_TEXT_SECONDARY).child(text.to_string()))
     }
+    fn render_right_scrollbar(&mut self, cx: &mut Context<Self>) -> gpui::Stateful<gpui::Div> {
+        let bounds = self.right_scroll_handle.bounds();
+        let max_offset = self.right_scroll_handle.max_offset();
+        let viewport_height = bounds.size.height;
+        let max_scroll = max_offset.height;
+        if viewport_height <= px(0.0) || max_scroll <= px(0.0) {
+            return div().id("right-content-scrollbar");
+        }
+
+        let track_inset = px(4.0);
+        let track_height = (viewport_height - track_inset * 2.0).max(px(0.0));
+        if track_height <= px(0.0) {
+            return div().id("right-content-scrollbar");
+        }
+
+        let content_height = viewport_height + max_scroll;
+        let min_thumb_height = px(36.0).min(track_height);
+        let thumb_height = (track_height * (viewport_height / content_height))
+            .clamp(min_thumb_height, track_height);
+        let scroll_top = -self.right_scroll_handle.offset().y;
+        let scroll_ratio = (scroll_top / max_scroll).clamp(0.0, 1.0);
+        let max_thumb_top = (track_height - thumb_height).max(px(0.0));
+        let thumb_top = track_inset + max_thumb_top * scroll_ratio;
+
+        let entity = cx.entity();
+        let scroll_handle = self.right_scroll_handle.clone();
+
+        div()
+            .id("right-content-scrollbar")
+            .absolute()
+            .top(thumb_top)
+            .right(px(6.0))
+            .w(px(8.0))
+            .h(thumb_height)
+            .bg(rgb(0x77778f))
+            .hover(|this| this.bg(rgb(0xaaaabb)))
+            .rounded_md()
+            .child(
+                canvas(
+                    |_, _, _| (),
+                    move |thumb_bounds, _, window, _| {
+                        window.on_mouse_event({
+                            let entity = entity.clone();
+                            move |ev: &MouseDownEvent, _, _, cx| {
+                                if !thumb_bounds.contains(&ev.position) {
+                                    return;
+                                }
+
+                                entity.update(cx, |this, _| {
+                                    this.right_scrollbar_drag_y =
+                                        Some(ev.position.y - thumb_bounds.origin.y);
+                                });
+                            }
+                        });
+
+                        window.on_mouse_event({
+                            let entity = entity.clone();
+                            move |_: &MouseUpEvent, _, _, cx| {
+                                entity.update(cx, |this, _| {
+                                    this.right_scrollbar_drag_y = None;
+                                });
+                            }
+                        });
+
+                        window.on_mouse_event(move |ev: &MouseMoveEvent, _, _, cx| {
+                            if !ev.dragging() {
+                                return;
+                            }
+
+                            let Some(drag_y) = entity.read(cx).right_scrollbar_drag_y else {
+                                return;
+                            };
+
+                            let max_thumb_top = (track_height - thumb_height).max(px(0.0));
+                            if max_thumb_top <= px(0.0) {
+                                return;
+                            }
+
+                            let thumb_top = (ev.position.y - bounds.origin.y - track_inset - drag_y)
+                                .clamp(px(0.0), max_thumb_top);
+                            let scroll_ratio = thumb_top / max_thumb_top;
+                            scroll_handle.set_offset(point(px(0.0), -(max_scroll * scroll_ratio)));
+                            cx.notify(entity.entity_id());
+                        });
+                    },
+                )
+                .size_full(),
+            )
+    }
     fn algo_mut(&mut self) -> &mut AlgoTab {
         &mut self.algo_tab
     }
@@ -836,6 +950,7 @@ impl DevToolsApp {
 }
 impl gpui::Render for DevToolsApp {
     fn render(&mut self, window: &mut Window, cx: &mut gpui::Context<Self>) -> impl IntoElement {
+        self.sync_right_scrollbar_after_layout(window, cx);
         let active_tab_index = self.active_tab_index();
         let tab_names = Self::tab_names();
         let menu_items = self.menu_items();
@@ -868,6 +983,8 @@ impl gpui::Render for DevToolsApp {
                     .flex()
                     .flex_row()
                     .flex_1()
+                    .min_h(px(0.0))
+                    .overflow_hidden()
                     .child(
                         div()
                             .w(px(200.0)).h_full()
@@ -896,9 +1013,23 @@ impl gpui::Render for DevToolsApp {
                                     .child(label)
                             })),
                     )
-                    .child(
-                        self.render_tab_content(window, cx),
-                    ),
+                    .child(div()
+                        .flex_1()
+                        .h_full()
+                        .min_w(px(0.0))
+                        .min_h(px(0.0))
+                        .relative()
+                        .overflow_hidden()
+                        .child(
+                            div()
+                                .id(ElementId::Name(SharedString::from("right-content-scroll")))
+                                .size_full()
+                                .overflow_y_scroll()
+                                .overflow_x_hidden()
+                                .track_scroll(&self.right_scroll_handle)
+                                .child(self.render_tab_content(window, cx)),
+                        )
+                        .child(self.render_right_scrollbar(cx))),
             )
     }
 }

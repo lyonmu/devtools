@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use gpui::{div, rgb, AnyElement, ElementId, InteractiveElement, ParentElement, Rgba, SharedString, StatefulInteractiveElement, Styled};
+use gpui::{div, rgb, AnyElement, ElementId, InteractiveElement, ParentElement, Rgba, SharedString, Styled};
 
 const fn rgb_const(hex: u32) -> Rgba {
     let r = ((hex >> 16) & 0xff) as f32 / 255.0;
@@ -64,7 +64,31 @@ pub fn render_status_banner(kind: UiStatusKind, message: impl Into<String>) -> g
         .child(display_text)
 }
 
-/// Render a monospaced output block with scroll
+const MONO_OUTPUT_WRAP_CHARS: usize = 96;
+
+fn wrap_mono_output_text(text: &str) -> String {
+    let mut wrapped = String::with_capacity(text.len() + text.len() / MONO_OUTPUT_WRAP_CHARS);
+
+    for (line_index, line) in text.split('\n').enumerate() {
+        if line_index > 0 {
+            wrapped.push('\n');
+        }
+
+        let mut chars_on_line = 0;
+        for ch in line.chars() {
+            if chars_on_line >= MONO_OUTPUT_WRAP_CHARS {
+                wrapped.push('\n');
+                chars_on_line = 0;
+            }
+            wrapped.push(ch);
+            chars_on_line += 1;
+        }
+    }
+
+    wrapped
+}
+
+/// Render a monospaced output block without capturing vertical scroll gestures.
 pub fn render_mono_output_block(text: &str) -> gpui::Stateful<gpui::Div> {
     div()
         .w_full()
@@ -73,11 +97,10 @@ pub fn render_mono_output_block(text: &str) -> gpui::Stateful<gpui::Div> {
         .bg(COLOR_BG_DARK)
         .rounded_md()
         .id(ElementId::Name(SharedString::from(format!("mono-output-{}", text.len()))))
-        .overflow_x_scroll()
         .font_family("monospace")
         .text_size(FONT_SMALL)
         .text_color(COLOR_TEXT_BODY)
-        .child(text.to_string())
+        .child(wrap_mono_output_text(text))
 }
 
 /// Render a result card with title and body
