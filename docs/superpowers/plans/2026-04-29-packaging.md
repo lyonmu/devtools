@@ -176,14 +176,14 @@ cargo install cargo-deb     # Linux
 ### macOS | macOS
 
 ```bash
-# 1. 生成图标
-./scripts/make-icons.sh
+# 构建 .app 并创建带“拖入 Applications 安装”入口的 DMG
+./scripts/make-dmg.sh
 
-# 2. 构建并打包
+# 如只需要 .app bundle，也可以单独运行
 cargo bundle --release
 ```
 
-输出：`target/release/bundle/osx/DevTools.dmg`
+输出：`target/release/bundle/osx/DevTools.app` 和 `target/release/bundle/osx/DevTools.dmg`；DMG 挂载后包含 `DevTools.app` 与 `Applications` 快捷方式。
 
 ### Ubuntu/Debian | Ubuntu/Debian
 
@@ -231,7 +231,7 @@ cargo build --release
 - [ ] **Step 2: 运行完整打包流程**
 
 ```bash
-./scripts/make-icons.sh && cargo bundle --release
+./scripts/make-dmg.sh
 ```
 
 - [ ] **Step 3: 验证 DMG 输出**
@@ -246,7 +246,7 @@ Expected: 显示 .dmg 文件
 ```bash
 open target/release/bundle/osx/DevTools.dmg
 ```
-Expected: Finder 窗口打开，显示 DevTools.app
+Expected: Finder 窗口打开，显示 DevTools.app 和 Applications 快捷方式，可拖入安装
 
 - [ ] **Step 5: Commit (如有修改)**
 
