@@ -58,6 +58,44 @@ cargo test
 
 ---
 
+## 打包 | Packaging
+
+### 前置要求 | Prerequisites
+
+```bash
+# 安装打包工具
+cargo install cargo-bundle  # macOS
+cargo install cargo-deb     # Linux
+```
+
+### macOS | macOS
+
+```bash
+# 1. 生成图标
+./scripts/make-icons.sh
+
+# 2. 构建并打包
+cargo bundle --release
+```
+
+输出：`target/release/bundle/osx/DevTools.dmg`
+
+### Ubuntu/Debian | Ubuntu/Debian
+
+```bash
+# 构建并打包
+cargo deb --release
+```
+
+输出：`target/debian/devtools_0.1.0_amd64.deb`
+
+安装：
+```bash
+sudo dpkg -i target/debian/devtools_0.1.0_amd64.deb
+```
+
+---
+
 ## 项目结构 | Project Structure
 
 ```
